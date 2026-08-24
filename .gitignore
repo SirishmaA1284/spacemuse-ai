@@ -1,0 +1,49 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Node / backend
+node_modules/
+dist/
+build/
+coverage/
+npm-debug.log*
+.npm
+
+# Android / Gradle
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# Backend build artifacts
+backend/dist/
+backend/*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Prisma
+backend/prisma/dev.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+
+# Local Claude Code session state — not project config
+.claude/settings.local.json

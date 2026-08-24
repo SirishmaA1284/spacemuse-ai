@@ -1,0 +1,240 @@
+// SpaceMuse AI — data model
+// See docs/database/schema.md for entity-relationship rationale.
+//
+// NOTE: SQLite (the local dev datasource) does not support Prisma's native
+// `enum` type, so enum-like fields below are `String` with allowed values
+// documented in a comment. Switching `provider` to "postgresql" later
+// enables converting these to real Prisma enums (tracked in
+// docs/development/technical-debt.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  preferences UserPreference[]
+  memories    DesignMemory[]
+  rooms       Room[]
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     String // JSON-encoded value
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, key])
+}
+
+model DesignMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  summary   String
+  source    String // "gemma_local" | "backend_synced"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  roomType    String // living_room | bedroom | kitchen | dining | bathroom | balcony | workspace | other
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  objects      RoomObject[]
+  measurements RoomMeasurement[]
+  designs      Design[]
+}
+
+model RoomObject {
+  id                 String   @id @default(cuid())
+  roomId             String
+  type               String // sofa | table | tv | plant | rug | ...
+  classification     String? // KEEP | MOVE | REMOVE | REPLACE | MODIFY
+  positionX          Float?
+  positionY          Float?
+  positionZ          Float?
+  rotationDegrees     Float?
+  widthCm             Float?
+  heightCm            Float?
+  depthCm             Float?
+  material            String?
+  color               String?
+  confidence          Float? // 0-1, required when measurementSource = ESTIMATED
+  measurementSource   String // MEASURED | ESTIMATED
+  createdAt           DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id])
+}
+
+model RoomMeasurement {
+  id                String   @id @default(cuid())
+  roomId            String
+  label             String // e.g. "wall_width_north"
+  valueCm           Float
+  measurementSource String // MEASURED | ESTIMATED
+  confidence        Float?
+  createdAt         DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id])
+}
+
+model Design {
+  id               String   @id @default(cuid())
+  roomId           String
+  title            String
+  currentVersionId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  room            Room                   @relation(fields: [roomId], references: [id])
+  versions        DesignVersion[]
+  constraints     DesignConstraint[]
+  recommendations DesignRecommendation[]
+  budget          Budget?
+  conversations   Conversation[]
+  visualizations  Visualization[]
+}
+
+model DesignVersion {
+  id          String   @id @default(cuid())
+  designId    String
+  label       String
+  stateJson   String // serialized DesignState snapshot
+  createdAt   DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id])
+}
+
+model DesignConstraint {
+  id              String   @id @default(cuid())
+  designId        String
+  type            String // KEEP | DONT_MOVE | BUDGET_MAX | USE_EXISTING_ONLY | NO_DRILLING | ...
+  targetObjectId  String?
+  value           String? // JSON-encoded, e.g. budget amount
+  createdAt       DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id])
+}
+
+model DesignRecommendation {
+  id          String   @id @default(cuid())
+  designId    String
+  intent      String // one of the 17 intents — see docs/product/feature-specification.md
+  summary     String
+  reasoning   String
+  createdAt   DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id])
+  shoppingListItems ShoppingListItem[]
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  providerId    String
+  externalId    String // provider's own product id
+  name          String
+  brand         String?
+  category      String
+  priceMinor    Int // stored in minor currency units (paise)
+  currency      String @default("INR")
+  availability  String // in_stock | out_of_stock | unknown
+  widthCm       Float?
+  heightCm      Float?
+  depthCm       Float?
+  material      String?
+  color         String?
+  styleTags     String? // JSON-encoded string[]
+  imageUrl      String?
+  productUrl    String
+  dataStatus    String // VERIFIED | ESTIMATED | CACHED | UNAVAILABLE | DEMO
+  lastUpdated   DateTime
+
+  provider ProductProvider @relation(fields: [providerId], references: [id])
+  shoppingListItems ShoppingListItem[]
+
+  @@unique([providerId, externalId])
+}
+
+model ProductProvider {
+  id        String   @id @default(cuid())
+  name      String   @unique // e.g. "serpapi_google_shopping", "amazon_pa_api"
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  products Product[]
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  designId    String   @unique
+  totalMinor  Int
+  currency    String   @default("INR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  design Design @relation(fields: [designId], references: [id])
+  items  ShoppingListItem[]
+}
+
+model ShoppingListItem {
+  id               String   @id @default(cuid())
+  budgetId         String
+  productId        String
+  recommendationId String?
+  quantity         Int      @default(1)
+  createdAt        DateTime @default(now())
+
+  budget         Budget                 @relation(fields: [budgetId], references: [id])
+  product        Product                @relation(fields: [productId], references: [id])
+  recommendation DesignRecommendation?  @relation(fields: [recommendationId], references: [id])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  designId  String
+  createdAt DateTime @default(now())
+
+  design   Design               @relation(fields: [designId], references: [id])
+  messages ConversationMessage[]
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // user | assistant
+  content        String
+  intent         String? // classified intent, if role = user
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model Visualization {
+  id          String   @id @default(cuid())
+  designId    String
+  level       Int // 1-4, see docs/decisions/ADRs/ADR-006-visualization-strategy.md
+  imageUrl    String
+  description String?
+  createdAt   DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id])
+}
