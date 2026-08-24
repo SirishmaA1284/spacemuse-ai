@@ -5,4 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.0.20" apply false
     id("com.google.dagger.hilt.android") version "2.51.1" apply false
     id("org.jetbrains.kotlin.plugin.serialization") version "2.0.20" apply false
+    // Kotlin 2.0+ decouples the Compose compiler from the Kotlin compiler —
+    // any module with buildFeatures.compose = true must apply this.
+    id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false
 }

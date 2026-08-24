@@ -1,5 +1,48 @@
 # Development Log
 
+## 2026-08-24 (2) — First real Android CI build, fix Compose compiler config
+
+### Goal
+Get the Android module actually compiling somewhere, since the scaffolding
+environment had no JDK/Android SDK to verify it locally. Added a GitHub
+Actions workflow (`.github/workflows/android-build.yml`) that builds the
+debug APK on GitHub's runners and uploads it as a downloadable artifact —
+chosen because the user's local machine doesn't meet Android Studio's
+system requirements either.
+
+### Problem found (first real CI run)
+Build failed immediately at project configuration:
+
+```
+A problem occurred configuring project ':app'.
+> Starting in Kotlin 2.0, the Compose Compiler Gradle plugin is required
+  when compose is enabled.
+```
+
+Root cause: as of Kotlin 2.0, the Jetpack Compose compiler is no longer
+bundled with the Kotlin Gradle plugin — it ships as a separate Gradle
+plugin (`org.jetbrains.kotlin.plugin.compose`) that must be applied
+explicitly on every module with `buildFeatures.compose = true`. The
+original scaffold used the pre-2.0 `composeOptions.kotlinCompilerExtensionVersion`
+mechanism, which no longer applies with Kotlin 2.0.20 (declared in
+`android/build.gradle.kts`). This wasn't caught before because static
+review of Gradle Kotlin DSL files doesn't execute Gradle's project
+configuration phase — only an actual build does.
+
+### Fix
+- `android/build.gradle.kts`: declared
+  `id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false`.
+- `android/app/build.gradle.kts` and `android/camera/build.gradle.kts` (the
+  two modules with Compose enabled): applied that plugin and removed the
+  now-unused `composeOptions { kotlinCompilerExtensionVersion = ... }`
+  block.
+
+### Status
+Fix pushed; next CI run will confirm whether this was the only
+configuration issue or whether further errors surface once configuration
+succeeds and actual compilation starts. Updating this log again once a run
+is confirmed green.
+
 ## 2026-08-24 — Foundation (Phase 1) + Intent Detection (Phase 3)
 
 ### Goal
