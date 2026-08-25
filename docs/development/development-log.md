@@ -1,5 +1,52 @@
 # Development Log
 
+## 2026-08-25 (5) — Firewall/URL fix confirmed reachable, but request now times out
+
+### Goal
+User reported "Couldn't analyze this room / timeout" after installing the
+Settings-screen build and (presumably) entering the LAN URL.
+
+### Diagnosis
+Checked what could be verified from this side without needing the user's
+phone:
+- Backend server still running, listening on `0.0.0.0:4000`.
+- `Get-NetFirewallRule -DisplayName "*SpaceMuse*"` — the rule from the
+  previous entry is present, Enabled, Direction=Inbound, Action=Allow,
+  Profile=Any.
+- `Get-NetConnectionProfile` — current Wi-Fi network category is
+  **Private**, not Public (Windows Firewall's default inbound posture is
+  much stricter on Public profiles — this being Private is favorable).
+
+So the firewall side looks correctly configured now. The error message
+itself changed shape from the previous entry's detailed
+`failed to connect to /10.0.2.2 (port 4000) from /192.168.1.7 (port 49742)
+after 10000ms` to a bare `timeout` — consistent with OkHttp's default
+**read/write timeout (10s each)** being hit rather than a connect failure:
+`ApiClient`'s `OkHttpClient` had no explicit timeouts configured, so
+OkHttp's 10-second defaults applied. Uploading a full-size JPEG photo plus
+the backend's own Gemini vision round-trip can plausibly exceed 10s,
+especially over home Wi-Fi.
+
+### Fix
+`android/core/.../network/ApiClient.kt` — added explicit timeouts to the
+shared `OkHttpClient`: `connectTimeout(15s)`, `writeTimeout(60s)`,
+`readTimeout(60s)`. Connect stays short (LAN connect should be near-
+instant once reachable at all); write/read get real headroom for the
+upload + Gemini analysis round-trip.
+
+### Caveat — not certain this is the whole fix
+This diagnosis is inferred from the error message's shape, not confirmed
+against the phone's actual state — couldn't verify what URL is currently
+saved in the app's Settings screen, or get the full underlying exception
+type. If this doesn't resolve it, the next things to check: the exact
+URL saved in Settings (typo / still the emulator default / missing
+trailing slash), and the full error text on the next attempt (asked the
+user for both).
+
+### Verification
+Brace-balance check on the edited file only — same unverified-locally
+constraint as every prior Android change in this repo.
+
 ## 2026-08-25 (4) — Real-device backend URL was hardcoded to the emulator-only address; added a Settings screen
 
 ### Goal

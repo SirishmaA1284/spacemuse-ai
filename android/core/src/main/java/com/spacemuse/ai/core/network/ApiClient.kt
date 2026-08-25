@@ -1,6 +1,7 @@
 package com.spacemuse.ai.core.network
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -36,8 +37,15 @@ object ApiClient {
         chain.proceed(chain.request().newBuilder().url(redirected).build())
     }
 
+    // OkHttp's 10s defaults are too tight for /rooms/analyze: uploading a
+    // full-size JPEG plus the backend's own Gemini vision round-trip can
+    // legitimately take longer than that, especially over a home Wi-Fi
+    // link — was surfacing as a plain "timeout" on a real device.
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(baseUrlInterceptor)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
     val api: SpaceMuseApi by lazy {
