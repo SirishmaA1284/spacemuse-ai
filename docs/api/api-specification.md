@@ -5,9 +5,13 @@ Base path: `/api/v1`. All routes return `application/json`.
 ## Implemented
 
 ### `POST /rooms/analyze`
-Accepts a room image (base64 or multipart — see route handler) plus optional
-AR measurement data. Returns a `RoomAnalysis` stub today (structure defined,
-real Gemini vision call not yet wired — see `docs/development/technical-debt.md`).
+Body: `{ imageBase64?: string, note?: string }`. When `imageBase64` is
+present and `GEMINI_API_KEY` is configured, calls Gemini vision and returns
+a `RoomAnalysis` (`source: "gemini"`). Otherwise — no image, no key, or a
+malformed model response — returns a deterministic placeholder
+`RoomAnalysis` (`source: "demo"`) so the endpoint always produces a usable
+result. AR measurement data is not yet accepted (all measurements are
+`ESTIMATED`, never `MEASURED` — see `docs/ai/limitations.md`).
 
 ### `POST /designs/:id/modify`
 Body: `{ message: string }`. Runs the message through the Coordinator →
@@ -19,13 +23,23 @@ a `status: "recognized_not_yet_actionable"` marker for anything other than
 ### `GET /health`
 Liveness check. Returns `{ status: "ok", geminiConfigured: boolean }`.
 
+### `GET /products/search`
+Query params: `q: string` (required), `category?: string`, `maxPrice?: number`
+(rupees). Runs the query through every configured `ProductProvider`
+(`backend/src/agents/shoppingAgent.ts` — currently just `GoogleShoppingProvider`,
+which needs `SERPAPI_KEY`). Returns
+`{ results: ProductResult[], providersConfigured: boolean }` —
+`providersConfigured: false` means no provider has credentials at all
+(distinct from a configured provider finding zero matches), so the client
+can show "no shopping provider configured" instead of a misleading blank
+result list.
+
 ## Specified, not yet implemented (route returns 501 with a clear message)
 
 ```
 POST   /designs
 GET    /designs/:id
 POST   /designs/:id/visualize
-GET    /products/search
 GET    /products/:id
 POST   /products/compare
 POST   /products/try-in-space

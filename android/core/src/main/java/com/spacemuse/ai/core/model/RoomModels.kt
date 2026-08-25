@@ -37,3 +37,29 @@ data class RoomObjectModel(
     val confidence: Float? = null,
     val measurementSource: String
 )
+
+@Serializable
+data class RoomMeasurementModel(
+    val label: String,
+    val valueCm: Float,
+    val measurementSource: String,
+    val confidence: Float? = null
+)
+
+// Mirrors backend/src/ai/schemas/roomAnalysis.schema.ts — keep both in sync
+// manually until a shared schema-generation step exists (tracked in
+// docs/development/technical-debt.md).
+@Serializable
+data class RoomAnalyzeRequest(
+    val imageBase64: String? = null,
+    val note: String? = null
+)
+
+@Serializable
+data class RoomAnalysis(
+    val roomType: String,
+    val objects: List<RoomObjectModel>,
+    val measurements: List<RoomMeasurementModel>,
+    val summary: String,
+    val source: String // "gemini" | "demo" — demo must be shown as such in the UI, never as a real scan
+)

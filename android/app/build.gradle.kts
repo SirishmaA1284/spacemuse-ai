@@ -57,6 +57,13 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation("com.google.dagger:hilt-android:2.51.1")
     kapt("com.google.dagger:hilt-compiler:2.51.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // CameraScreen references ImageCapture/ImageProxy directly to trigger a
+    // real capture — the :camera module declares camera-core as
+    // implementation (not api), so it isn't on this module's compile
+    // classpath transitively; version must match android/camera/build.gradle.kts.
+    implementation("androidx.camera:camera-core:1.3.4")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

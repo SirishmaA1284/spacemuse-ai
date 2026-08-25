@@ -6,5 +6,8 @@ package com.spacemuse.ai.core.network
 object ApiConfig {
     // Android emulator loopback to a host machine's localhost.
     // Override via BuildConfig/DI for physical devices or deployed backends.
+    // Plain HTTP only works because AndroidManifest.xml sets
+    // usesCleartextTraffic="true" for this dev-only default — switch to a
+    // real HTTPS URL (and drop that flag) before shipping.
     const val BASE_URL = "http://10.0.2.2:4000/api/v1/"
 }

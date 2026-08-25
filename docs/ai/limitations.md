@@ -1,8 +1,13 @@
 # Known AI Limitations
 
-- **No image understanding is implemented yet.** Intent detection works on
-  text only in this pass; `rooms/analyze` accepts an image payload but the
-  handler is a documented stub (see `docs/development/technical-debt.md`).
+- **Room-photo understanding is wired but unevaluated.** `rooms/analyze`
+  calls Gemini vision when an image + `GEMINI_API_KEY` are present
+  (`backend/src/agents/roomAnalysisAgent.ts`), but no accuracy evaluation
+  has been run against real room photos yet (`docs/ai/evaluation.md` has no
+  entries) — treat classifications and dimension estimates as unverified
+  until that exists. Without an image (or without a key, or if the model's
+  response fails schema validation), the endpoint returns a fixed demo
+  `RoomAnalysis` tagged `source: "demo"` rather than failing.
 - **Without `GEMINI_API_KEY`**, intent detection silently falls back to a
   small keyword-based classifier (`backend/src/agents/intentAgent.ts`). This
   is intentional (keeps the app usable in dev without a key) but is far less

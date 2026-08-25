@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { handleDesignModification } from "../../../agents/coordinatorAgent.js";
+import { analyzeRoom } from "../../../agents/roomAnalysisAgent.js";
+import { searchProducts } from "../../../agents/shoppingAgent.js";
 import { isGeminiConfigured } from "../../../config/env.js";
 
 export const v1Router = Router();
@@ -14,19 +16,14 @@ const RoomAnalyzeSchema = z.object({
   note: z.string().optional(),
 });
 
-v1Router.post("/rooms/analyze", (req, res) => {
+v1Router.post("/rooms/analyze", async (req, res) => {
   const parsed = RoomAnalyzeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "invalid_request", details: parsed.error.flatten() });
     return;
   }
-  // Real Gemini vision call not yet implemented — see
-  // docs/development/roadmap.md Phase 2 and docs/api/api-specification.md.
-  res.status(501).json({
-    error: "not_implemented",
-    phase: "Phase 2 — Camera + Room Intelligence",
-    message: "Room image analysis is specified but not yet wired to Gemini vision.",
-  });
+  const analysis = await analyzeRoom(parsed.data);
+  res.json(analysis);
 });
 
 const ModifyDesignSchema = z.object({
@@ -44,6 +41,28 @@ v1Router.post("/designs/:id/modify", async (req, res) => {
   res.json(result);
 });
 
+const ProductSearchQuerySchema = z.object({
+  q: z.string().min(1),
+  category: z.string().optional(),
+  maxPrice: z.coerce.number().positive().optional(), // rupees; converted to minor units below
+});
+
+v1Router.get("/products/search", async (req, res) => {
+  const parsed = ProductSearchQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_request", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { q, category, maxPrice } = parsed.data;
+  const result = await searchProducts({
+    query: q,
+    category,
+    maxPriceMinor: maxPrice !== undefined ? Math.round(maxPrice * 100) : undefined,
+  });
+  res.json(result);
+});
+
 // Routes specified in docs/api/api-specification.md but not yet
 // implemented. Return 501 with the target roadmap phase rather than a bare
 // 404, so the documented API contract is visible even before it's built.
@@ -54,7 +73,6 @@ const notImplemented = (phase: string) => (_req: import("express").Request, res:
 v1Router.post("/designs", notImplemented("Phase 4 — Design Reasoning"));
 v1Router.get("/designs/:id", notImplemented("Phase 4 — Design Reasoning"));
 v1Router.post("/designs/:id/visualize", notImplemented("Phase 8 — Visualization"));
-v1Router.get("/products/search", notImplemented("Phase 9 — Real Product Discovery"));
 v1Router.get("/products/:id", notImplemented("Phase 9 — Real Product Discovery"));
 v1Router.post("/products/compare", notImplemented("Phase 9 — Real Product Discovery"));
 v1Router.post("/products/try-in-space", notImplemented("Phase 10 — Try-In-Space"));

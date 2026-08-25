@@ -9,7 +9,10 @@ name: Android Debug Build
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    # This repo's default/only branch is "master", not "main" — the trigger
+    # must match it or pushes never fire this workflow automatically (found
+    # 2026-08-25: it likely never auto-ran since being added).
+    branches: [master]
     paths:
       - "android/**"
       - ".github/workflows/android-build.yml"
