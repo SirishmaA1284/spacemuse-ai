@@ -5,6 +5,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added (2026-08-25, cont'd 3)
+- New in-app Settings screen (gear icon on Home) to change the backend
+  server URL at runtime — no rebuild needed. Fixes real-device testing:
+  the previous hardcoded default (`10.0.2.2`) only resolves inside the
+  Android Emulator, not on a physical phone. Backed by DataStore
+  Preferences; `ApiClient`'s Retrofit base URL is now dynamic via an
+  OkHttp interceptor instead of fixed at build time.
+
 ### Fixed (2026-08-25, cont'd 2)
 - `SERPAPI_KEY` configured — `GET /products/search` now returns real
   `GoogleShoppingProvider` results instead of `providersConfigured: false`.

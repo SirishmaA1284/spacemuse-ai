@@ -1,5 +1,76 @@
 # Development Log
 
+## 2026-08-25 (4) — Real-device backend URL was hardcoded to the emulator-only address; added a Settings screen
+
+### Goal
+User pushed 0e5118f, GitHub Actions built the APK, they sideloaded it onto
+a real phone (confirmed via a screenshot: the improved error/cancel UI
+rendered correctly — first real signal the Android side actually compiles
+and runs). Scanning failed with `failed to connect to /10.0.2.2 (port
+4000) ...`.
+
+### Root cause
+`ApiConfig.BASE_URL` was hardcoded to `http://10.0.2.2:4000/...` —
+`10.0.2.2` is a special alias that only resolves to the host machine's
+localhost *inside the Android Emulator*. On a real device it's just an
+unreachable IP. The phone (`192.168.1.7`) and this dev machine
+(`192.168.1.10`) are on the same LAN, so the fix is to point the app at
+the machine's real LAN IP — but that value is per-network and can change,
+so hardcoding it again would just move the same problem.
+
+### Fix: in-app Settings screen instead of hardcoding
+User's choice (asked directly, since this had real tradeoffs): add a
+Settings screen to change the backend URL from the phone itself, no
+rebuild needed if the network/IP changes later.
+- `android/core/.../network/BackendUrlStore.kt` — new. Persists the
+  backend URL in DataStore Preferences (`androidx.datastore:datastore-preferences`,
+  already a dependency). Always resolves through `context.applicationContext`
+  before touching the DataStore delegate — using an Activity Context and
+  the Application Context for the same DataStore file in one process
+  throws "multiple DataStores active for the same file", a real DataStore
+  pitfall worth calling out.
+- `android/core/.../network/ApiClient.kt` — rewritten. `baseUrl` is now a
+  `@Volatile var` instead of baked into Retrofit's builder; Retrofit is
+  built once against a fixed placeholder host, and a `baseUrlInterceptor`
+  rewrites every outgoing request's scheme/host/port/path-prefix to the
+  current `baseUrl` value. Standard pattern for a runtime-changeable
+  Retrofit base URL — Retrofit's own `baseUrl()` can't be changed after
+  the client is built.
+- `android/app/.../ui/screens/settings/SettingsScreen.kt` — new. A text
+  field for the backend URL (validated via OkHttp's `HttpUrl` parser
+  before saving, wrapped as `BackendUrlStore.isValidBaseUrl` so `app`
+  doesn't need its own OkHttp dependency just for this), a "Reset to
+  emulator default" button, explains the LAN-IP requirement in plain
+  language since this is exactly the situation that just went wrong.
+- `SpaceMuseApp.onCreate()` now does one `runBlocking` DataStore read at
+  startup so a previously-saved URL is loaded before the first network
+  call — a deliberate small blocking read (single preferences key, no
+  meaningful cold-start cost) rather than plumbing async initialization
+  through every screen.
+- `HomeScreen.kt` / `NavGraph.kt` — added a settings-gear entry point
+  (top-right of Home) and the `settings` route.
+- Added `kotlinx-coroutines-core` explicitly to `core/build.gradle.kts` —
+  `BackendUrlStore` uses `Flow`/`suspend` directly and `core` had no
+  explicit coroutines dependency before (only transitively via other
+  libraries), not safe to assume for code compiled in this module itself.
+
+### What still needs the user's own action
+- Windows Firewall: no inbound rule existed for port 4000, and this
+  session doesn't have admin rights to add one. Gave the user the
+  `netsh advfirewall` command to run themselves (as Administrator).
+- Started the backend server in this session, confirmed reachable at
+  `http://192.168.1.10:4000/api/v1/health` from this machine — still
+  needs the firewall rule before the phone can reach it too.
+- User needs to enter `http://192.168.1.10:4000/api/v1/` in the new
+  Settings screen once the updated APK is installed.
+
+### Verification
+- Android: same unverified-locally constraint as every prior Android
+  change — checked DataStore/OkHttp/Retrofit APIs against known-correct
+  usage, balanced braces across every touched file. Real confirmation
+  will come from the next CI build + the user actually reaching the
+  backend from the app.
+
 ## 2026-08-25 (3) — Real SERPAPI_KEY added; products now return real data; fixed a test that broke the same way intentAgent's did
 
 ### Goal
