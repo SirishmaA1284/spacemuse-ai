@@ -5,6 +5,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed (2026-08-25, cont'd 2)
+- `SERPAPI_KEY` configured — `GET /products/search` now returns real
+  `GoogleShoppingProvider` results instead of `providersConfigured: false`.
+- `backend/src/agents/shoppingAgent.ts`: `searchProducts()` now takes an
+  optional `providers` param (defaults to the real list) so tests can
+  inject fake providers instead of depending on which real keys happen to
+  be set — `shoppingAgent.test.ts` was rewritten around this and no longer
+  makes a real network call.
+
 ### Added (2026-08-25, cont'd)
 - `GET /products/search` now wired to a new Shopping Agent
   (`backend/src/agents/shoppingAgent.ts`) over `GoogleShoppingProvider` —

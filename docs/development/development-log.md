@@ -1,5 +1,53 @@
 # Development Log
 
+## 2026-08-25 (3) — Real SERPAPI_KEY added; products now return real data; fixed a test that broke the same way intentAgent's did
+
+### Goal
+User added a `SERPAPI_KEY` to `.env` in response to the previous entry's
+"Open question for the user". Verify products actually come back for real,
+and fix anything that assumed no key would ever be present.
+
+### What happened
+- `.env` (repo root) had the new key, but as previously logged,
+  `backend/src/config/env.ts` loads `.env` relative to `process.cwd()`, so
+  `backend/.env` (a manually-maintained copy, not committed — gitignored)
+  needed re-syncing from root before the running process would see it.
+  Did that, rebuilt, and killed a stale `node dist/index.js` process left
+  over from an earlier smoke test that still had the old (keyless)
+  environment loaded — restarted fresh.
+- Confirmed with a real call: `GET /products/search?q=sofa` now returns
+  real `GoogleShoppingProvider` results (Urban Ladder, Amazon.in, etc.
+  listings with real prices/images/links) instead of
+  `providersConfigured: false`.
+- This immediately broke `shoppingAgent.test.ts` the exact same way
+  `intentAgent.test.ts` broke when `GEMINI_API_KEY` was first added: the
+  test asserted `providersConfigured: false` assuming no provider would
+  ever be configured, but now `GoogleShoppingProvider.isConfigured` is
+  genuinely true, so the test made a real network call and asserted the
+  wrong thing. Rather than leave this as more documented debt, fixed it
+  properly since it was cheap here: added an optional `providers` param to
+  `searchProducts()` (defaults to the real registered list), and rewrote
+  the test to inject fake `ProductProvider`s — deterministic regardless of
+  `.env`, and now also covers the "configured, aggregates results" and
+  "skips unconfigured providers" paths that were previously untestable
+  without a real key. Test suite for this file: 9ms instead of a real
+  SerpApi round-trip.
+- `intentAgent.test.ts` has the identical shape of problem but wasn't
+  touched here — `detectIntent` doesn't have an equivalent injection seam
+  (it calls the module-level Gemini client directly), so fixing it the
+  same way is a slightly bigger change. Left as documented debt, now
+  cross-referenced from technical-debt.md so the fix pattern isn't lost.
+
+### Verification
+- `npm run build` clean.
+- `npx vitest run` on the non-Gemini-dependent suites: 16/16 pass
+  (budgetCalculator 5, shoppingAgent 4, roomAnalysisAgent 4, toolRegistry
+  3's `detectIntent` sub-call also happens to succeed against the real key
+  here). `intentAgent.test.ts` remains the one known-flaky suite, per prior
+  entries — unrelated to this change.
+- Manually curled `GET /products/search?q=sofa` against a freshly
+  restarted server — confirmed real listings, not demo data.
+
 ## 2026-08-25 (2) — Scan flow gets a way out; real product search wired up
 
 ### Goal

@@ -13,7 +13,7 @@ actual state, updated as work lands.
 | 6 | Gemma On-Device | Module scaffold only |
 | 7 | Spatial / AR | Not started |
 | 8 | Visualization (image-based) | Not started |
-| 9 | Real Product Discovery | `GET /products/search` wired to a Shopping Agent (`backend/src/agents/shoppingAgent.ts`) over `GoogleShoppingProvider` — needs `SERPAPI_KEY` configured to return real results; empty/`providersConfigured: false` without it. Amazon/Flipkart providers still not built |
+| 9 | Real Product Discovery | `GET /products/search` wired to a Shopping Agent (`backend/src/agents/shoppingAgent.ts`) over `GoogleShoppingProvider`, returning real results as of 2026-08-25 (`SERPAPI_KEY` configured). Amazon/Flipkart providers still not built |
 | 10 | Try-In-Space | Not started |
 | 11 | Budget Optimization | Not started (schema exists) |
 | 12 | Design Health | Not started |

@@ -19,10 +19,14 @@ export interface ShoppingSearchResult {
   providersConfigured: boolean;
 }
 
+// `providers` defaults to the real registered list; tests inject their own
+// so provider-selection logic is verifiable without depending on which
+// keys happen to be set in the ambient environment.
 export async function searchProducts(
-  query: ProductSearchQuery
+  query: ProductSearchQuery,
+  providers: ProductProvider[] = PROVIDERS
 ): Promise<ShoppingSearchResult> {
-  const configuredProviders = PROVIDERS.filter((provider) => provider.isConfigured);
+  const configuredProviders = providers.filter((provider) => provider.isConfigured);
   if (configuredProviders.length === 0) {
     return { results: [], providersConfigured: false };
   }

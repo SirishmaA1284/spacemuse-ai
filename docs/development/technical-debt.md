@@ -15,10 +15,10 @@ Tracked honestly so nothing here is silently forgotten.
   is a fixed, hand-written living-room layout — it never varies by input.
   Fine as a "the pipeline works end-to-end" demo, but not useful for
   actually testing UI behavior against different room shapes.
-- No product provider credential is configured in this repo's `.env`
-  (`SERPAPI_KEY` and everything else in the "Product Discovery" section are
-  empty) — `GET /products/search` is fully wired but will always return
-  `providersConfigured: false` until one is added.
+- `SERPAPI_KEY` is now configured in this repo's `.env` (added 2026-08-25) —
+  `GET /products/search` returns real `GoogleShoppingProvider` results.
+  Other Product Discovery credentials (Amazon PA API, Flipkart Affiliate)
+  are still empty, so those providers remain unbuilt/unreachable.
 - Android project is unverified — no JDK/Android SDK in the scaffolding
   environment, so `./gradlew build` has never been run against this code.
 - `backend/src/config/env.ts` uses `dotenv/config`, which loads `.env`
@@ -29,8 +29,12 @@ Tracked honestly so nothing here is silently forgotten.
 - `backend/tests/unit/intentAgent.test.ts` assumes no `GEMINI_API_KEY` is
   configured (asserts `source: "fallback"`) — fails/times out in any
   environment where a real key is set, since `detectIntent` then genuinely
-  calls Gemini. Should mock/unset the key for that suite explicitly instead
-  of relying on the ambient environment.
+  calls Gemini. `shoppingAgent.test.ts` had the identical problem with
+  `SERPAPI_KEY` and was fixed by injecting fake `ProductProvider`s instead
+  of depending on ambient env (`searchProducts` now takes an optional
+  `providers` param, defaulting to the real registered list) — the same
+  shape of fix (inject a fake Gemini client) would fix this one too, but
+  `detectIntent` doesn't have an injection seam for that yet.
 - No CI pipeline configured yet.
 - No rate limiting / abuse protection on the backend.
 - Gemma on-device module has no actual model loading/inference code yet.
