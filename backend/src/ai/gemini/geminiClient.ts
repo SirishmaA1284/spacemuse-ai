@@ -32,6 +32,11 @@ async function runStructuredJson<T>(
       config: {
         responseMimeType: "application/json",
         responseSchema,
+        // Without this, a slow/stuck Gemini call hangs indefinitely and the
+        // only thing that ever times out is the Android client's own OkHttp
+        // read timeout, surfacing as a generic "timeout" with no indication
+        // of where the time actually went.
+        httpOptions: { timeout: 45_000 },
       },
     });
 

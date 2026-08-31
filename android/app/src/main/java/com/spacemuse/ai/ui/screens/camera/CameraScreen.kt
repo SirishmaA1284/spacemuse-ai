@@ -6,11 +6,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -105,7 +108,28 @@ fun CameraScreen(onBack: () -> Unit) {
     // supported format prior to CameraX 1.5's RAW/Ultra HDR additions,
     // which this project doesn't opt into) — imageProxyToJpegBytes() below
     // relies on that single-plane compressed buffer.
-    val imageCapture = remember { ImageCapture.Builder().build() }
+    //
+    // Bounded to ~1280x960 at JPEG quality 85 rather than the sensor's full
+    // resolution/default quality: an uncapped capture on a modern phone can
+    // be several MB, which base64-encodes to an even bigger request body —
+    // real-device testing showed that stalling past the 60s OkHttp timeout
+    // (both the upload itself and Gemini's own processing scale with image
+    // size). Room-object detection doesn't need more than ~1.2MP anyway.
+    val imageCapture = remember {
+        ImageCapture.Builder()
+            .setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(1280, 960),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                        )
+                    )
+                    .build()
+            )
+            .setJpegQuality(85)
+            .build()
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
