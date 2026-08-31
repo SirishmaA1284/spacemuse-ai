@@ -17,6 +17,7 @@ import com.google.ar.core.Frame
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
@@ -52,6 +53,16 @@ fun ArCameraPreview(
 
     val sessionHolder = remember { mutableStateOf<Session?>(null) }
     val glViewHolder = remember { mutableStateOf<GLSurfaceView?>(null) }
+    // ARCore requires Session.setCameraTextureName() to be called
+    // immediately before EVERY Session.resume(), or the camera capture
+    // session never gets wired to that texture and the passthrough image
+    // stays blank — even though 6DOF tracking keeps working fine, since
+    // pose tracking uses a separate internal path independent of the
+    // display texture. The texture only exists on the GL thread, so the
+    // actual setCameraTextureName+resume() pairing happens there (below, in
+    // ArRenderer.onDrawFrame) in strict order, never split across threads
+    // racing each other. This flag just signals "a resume is due".
+    val resumeRequested = remember { AtomicBoolean(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -65,8 +76,8 @@ fun ArCameraPreview(
                             }
                             newSession.configure(config)
                         }
-                        activeSession.resume()
                         sessionHolder.value = activeSession
+                        resumeRequested.set(true)
                         glViewHolder.value?.onResume()
                     } catch (e: Exception) {
                         onSessionError(e.message ?: "Failed to start the AR session.")
@@ -100,6 +111,7 @@ fun ArCameraPreview(
                 setRenderer(
                     ArRenderer(
                         getSession = { sessionHolder.value },
+                        consumeResumeRequest = { resumeRequested.compareAndSet(true, false) },
                         onTrackingStatusChanged = onTrackingStatusChanged,
                         onRendererError = onSessionError
                     )
@@ -113,11 +125,11 @@ fun ArCameraPreview(
 
 private class ArRenderer(
     private val getSession: () -> Session?,
+    private val consumeResumeRequest: () -> Boolean,
     private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
     private val onRendererError: (String) -> Unit
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
-    private var textureBoundToSession: Session? = null
     private var renderingDisabled = false
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -132,7 +144,6 @@ private class ArRenderer(
             renderingDisabled = true
             onRendererError(e.message ?: "AR renderer failed to initialize.")
         }
-        textureBoundToSession = null
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -145,13 +156,16 @@ private class ArRenderer(
         if (renderingDisabled) return
         val session = getSession() ?: return
 
-        // Session may not exist yet when the GL surface is first created
-        // (GL thread and the lifecycle observer run independently), so bind
-        // the texture name once a session becomes available rather than
-        // only in onSurfaceCreated.
-        if (textureBoundToSession !== session) {
-            session.setCameraTextureName(backgroundRenderer.textureId)
-            textureBoundToSession = session
+        if (consumeResumeRequest()) {
+            try {
+                // Must happen in exactly this order, every resume (not just
+                // the first) — see the comment on resumeRequested above.
+                session.setCameraTextureName(backgroundRenderer.textureId)
+                session.resume()
+            } catch (e: Exception) {
+                onRendererError(e.message ?: "Failed to resume the AR session.")
+                return
+            }
         }
 
         val frame: Frame = try {
