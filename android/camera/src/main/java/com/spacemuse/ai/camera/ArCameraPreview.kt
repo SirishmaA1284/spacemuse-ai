@@ -1,5 +1,6 @@
 package com.spacemuse.ai.camera
 
+import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -99,7 +100,8 @@ fun ArCameraPreview(
                 setRenderer(
                     ArRenderer(
                         getSession = { sessionHolder.value },
-                        onTrackingStatusChanged = onTrackingStatusChanged
+                        onTrackingStatusChanged = onTrackingStatusChanged,
+                        onRendererError = onSessionError
                     )
                 )
                 renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -111,13 +113,25 @@ fun ArCameraPreview(
 
 private class ArRenderer(
     private val getSession: () -> Session?,
-    private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit
+    private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
+    private val onRendererError: (String) -> Unit
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
     private var textureBoundToSession: Session? = null
+    private var renderingDisabled = false
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        backgroundRenderer.createOnGlThread()
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        renderingDisabled = false
+        try {
+            backgroundRenderer.createOnGlThread()
+        } catch (e: Exception) {
+            // A shader compile/link failure previously showed up as a blank
+            // solid-color screen with zero diagnostic — surface the real
+            // reason instead of silently drawing nothing every frame.
+            renderingDisabled = true
+            onRendererError(e.message ?: "AR renderer failed to initialize.")
+        }
         textureBoundToSession = null
     }
 
@@ -126,6 +140,9 @@ private class ArRenderer(
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+
+        if (renderingDisabled) return
         val session = getSession() ?: return
 
         // Session may not exist yet when the GL surface is first created

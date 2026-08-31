@@ -45,6 +45,20 @@ internal class BackgroundRenderer {
         GLES20.glAttachShader(program, vertexShader)
         GLES20.glAttachShader(program, fragmentShader)
         GLES20.glLinkProgram(program)
+
+        // Silently swallowing a link failure here is exactly what previously
+        // produced a blank/solid-color quad with no diagnostic — the quad
+        // still "draws" (all downstream calls no-op on an invalid program)
+        // but never samples the camera texture. Fail loudly instead so the
+        // caller can surface the real reason on screen.
+        val linkStatus = IntArray(1)
+        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
+        if (linkStatus[0] == GLES20.GL_FALSE) {
+            val log = GLES20.glGetProgramInfoLog(program)
+            GLES20.glDeleteProgram(program)
+            throw IllegalStateException("AR background shader program failed to link: $log")
+        }
+
         GLES20.glUseProgram(program)
 
         positionAttrib = GLES20.glGetAttribLocation(program, "a_Position")
@@ -94,6 +108,15 @@ internal class BackgroundRenderer {
         val shader = GLES20.glCreateShader(type)
         GLES20.glShaderSource(shader, source)
         GLES20.glCompileShader(shader)
+
+        val compileStatus = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0)
+        if (compileStatus[0] == GLES20.GL_FALSE) {
+            val log = GLES20.glGetShaderInfoLog(shader)
+            GLES20.glDeleteShader(shader)
+            val kind = if (type == GLES20.GL_VERTEX_SHADER) "vertex" else "fragment"
+            throw IllegalStateException("AR background $kind shader failed to compile: $log")
+        }
         return shader
     }
 
