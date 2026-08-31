@@ -1,7 +1,11 @@
 package com.spacemuse.ai.camera
 
+import android.content.Context
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.os.Build
+import android.view.Surface
+import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +114,7 @@ fun ArCameraPreview(
                 setEGLContextClientVersion(2)
                 setRenderer(
                     ArRenderer(
+                        context = ctx,
                         getSession = { sessionHolder.value },
                         consumeResumeRequest = { resumeRequested.compareAndSet(true, false) },
                         onTrackingStatusChanged = onTrackingStatusChanged,
@@ -124,6 +129,7 @@ fun ArCameraPreview(
 }
 
 private class ArRenderer(
+    private val context: Context,
     private val getSession: () -> Session?,
     private val consumeResumeRequest: () -> Boolean,
     private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
@@ -131,6 +137,8 @@ private class ArRenderer(
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
     private var renderingDisabled = false
+    private var viewportWidth = 0
+    private var viewportHeight = 0
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0f, 0f, 0f, 1f)
@@ -147,7 +155,8 @@ private class ArRenderer(
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        // Full-screen quad in NDC — no viewport-relative geometry to adjust.
+        viewportWidth = width
+        viewportHeight = height
     }
 
     override fun onDrawFrame(gl: GL10?) {
@@ -166,6 +175,17 @@ private class ArRenderer(
                 onRendererError(e.message ?: "Failed to resume the AR session.")
                 return
             }
+        }
+
+        // ARCore requires this before Frame.transformCoordinates2d() (used
+        // in BackgroundRenderer.draw()) produces valid results — without it
+        // the camera-to-display coordinate mapping is undefined, which
+        // showed up as a flat, blurred, near-uniform color instead of a
+        // real image (the transform sampled the wrong/degenerate region of
+        // the camera texture). Cheap Session-level call, safe to repeat
+        // every frame rather than tracking a "did this change" flag.
+        if (viewportWidth > 0 && viewportHeight > 0) {
+            session.setDisplayGeometry(displayRotation(context), viewportWidth, viewportHeight)
         }
 
         val frame: Frame = try {
@@ -189,3 +209,11 @@ private class ArRenderer(
         )
     }
 }
+
+@Suppress("DEPRECATION")
+private fun displayRotation(context: Context): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        context.display?.rotation ?: Surface.ROTATION_0
+    } else {
+        (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
+    }
