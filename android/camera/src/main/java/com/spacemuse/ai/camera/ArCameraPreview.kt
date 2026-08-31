@@ -18,6 +18,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
+import com.google.ar.core.Plane
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
@@ -30,11 +31,13 @@ data class ArTrackingStatus(
     val failureReason: TrackingFailureReason? = null
 )
 
-// Minimal ARCore camera-passthrough preview: creates/resumes/pauses a
-// Session tied to the composable's lifecycle (mirrors CameraPreview.kt's
-// CameraX lifecycle-binding pattern) and renders only the camera background
-// texture — no plane/point-cloud rendering yet, that's Milestone 2 (see
-// docs/architecture/spatial-architecture.md, Phase 7).
+// ARCore camera-passthrough + plane-detection preview: creates/resumes/
+// pauses a Session tied to the composable's lifecycle (mirrors
+// CameraPreview.kt's CameraX lifecycle-binding pattern), renders the camera
+// background texture, and overlays detected planes as translucent colored
+// polygons (Milestone 2 of Phase 7 — see
+// docs/architecture/spatial-architecture.md). No measurement capture or
+// persistence yet — that's Milestone 3.
 //
 // Deliberately a separate preview from CameraPreview.kt/CameraX rather than
 // combined with it: ARCore needs raw camera2 ownership via
@@ -50,6 +53,7 @@ data class ArTrackingStatus(
 fun ArCameraPreview(
     modifier: Modifier = Modifier,
     onTrackingStatusChanged: (ArTrackingStatus) -> Unit = {},
+    onPlaneCountChanged: (Int) -> Unit = {},
     onSessionError: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -75,7 +79,7 @@ fun ArCameraPreview(
                     try {
                         val activeSession = sessionHolder.value ?: Session(context).also { newSession ->
                             val config = Config(newSession).apply {
-                                planeFindingMode = Config.PlaneFindingMode.DISABLED
+                                planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
                                 updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
                             }
                             newSession.configure(config)
@@ -118,6 +122,7 @@ fun ArCameraPreview(
                         getSession = { sessionHolder.value },
                         consumeResumeRequest = { resumeRequested.compareAndSet(true, false) },
                         onTrackingStatusChanged = onTrackingStatusChanged,
+                        onPlaneCountChanged = onPlaneCountChanged,
                         onRendererError = onSessionError
                     )
                 )
@@ -133,9 +138,11 @@ private class ArRenderer(
     private val getSession: () -> Session?,
     private val consumeResumeRequest: () -> Boolean,
     private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
+    private val onPlaneCountChanged: (Int) -> Unit,
     private val onRendererError: (String) -> Unit
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
+    private val planeRenderer = PlaneRenderer()
     private var renderingDisabled = false
     private var viewportWidth = 0
     private var viewportHeight = 0
@@ -145,6 +152,7 @@ private class ArRenderer(
         renderingDisabled = false
         try {
             backgroundRenderer.createOnGlThread()
+            planeRenderer.createOnGlThread()
         } catch (e: Exception) {
             // A shader compile/link failure previously showed up as a blank
             // solid-color screen with zero diagnostic — surface the real
@@ -197,6 +205,17 @@ private class ArRenderer(
         backgroundRenderer.draw(frame)
 
         val camera = frame.camera
+        if (camera.trackingState == TrackingState.TRACKING) {
+            val viewMatrix = FloatArray(16)
+            val projectionMatrix = FloatArray(16)
+            camera.getViewMatrix(viewMatrix, 0)
+            camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+            val planeCount = planeRenderer.draw(session.getAllTrackables(Plane::class.java), viewMatrix, projectionMatrix)
+            onPlaneCountChanged(planeCount)
+        } else {
+            onPlaneCountChanged(0)
+        }
+
         onTrackingStatusChanged(
             ArTrackingStatus(
                 state = camera.trackingState,

@@ -39,12 +39,13 @@ import com.spacemuse.ai.camera.ArAvailabilityResult
 import com.spacemuse.ai.camera.ArCameraPreview
 import com.spacemuse.ai.camera.ArTrackingStatus
 
-// Milestone 1 of Phase 7 (Spatial/AR — see docs/architecture/spatial-architecture.md):
-// proves ARCore initializes and renders camera passthrough on a real device
-// before anything (plane detection, measurement capture) is built on top of
-// it. Deliberately does nothing else yet — no scanning, no persistence, no
-// product logic. Left as a second entry point alongside the existing
-// single-photo CameraScreen/"Scan My Space" flow, not a replacement for it.
+// Milestones 1-2 of Phase 7 (Spatial/AR — see docs/architecture/spatial-architecture.md):
+// proves ARCore initializes, renders camera passthrough, and visualizes
+// detected planes on a real device before measurement capture/persistence
+// is built on top of it (Milestone 3). Deliberately does nothing else yet —
+// no scanning, no persistence, no product logic. Left as a second entry
+// point alongside the existing single-photo CameraScreen/"Scan My Space"
+// flow, not a replacement for it.
 @Composable
 fun ArScanScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -60,6 +61,7 @@ fun ArScanScreen(onBack: () -> Unit) {
 
     val availability = remember { ArAvailability.check(context) }
     var trackingStatus by remember { mutableStateOf<ArTrackingStatus?>(null) }
+    var planeCount by remember { mutableStateOf(0) }
     var sessionError by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -76,13 +78,15 @@ fun ArScanScreen(onBack: () -> Unit) {
                 ArCameraPreview(
                     modifier = Modifier.fillMaxSize(),
                     onTrackingStatusChanged = { trackingStatus = it },
+                    onPlaneCountChanged = { planeCount = it },
                     onSessionError = { sessionError = it }
                 )
                 TrackingStatusBadge(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 40.dp),
-                    status = trackingStatus
+                    status = trackingStatus,
+                    planeCount = planeCount
                 )
             }
         }
@@ -113,14 +117,19 @@ private fun ArScanTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun TrackingStatusBadge(modifier: Modifier = Modifier, status: ArTrackingStatus?) {
+private fun TrackingStatusBadge(modifier: Modifier = Modifier, status: ArTrackingStatus?, planeCount: Int) {
+    val text = if (status?.state == TrackingState.TRACKING) {
+        "Tracking — planes detected: $planeCount"
+    } else {
+        trackingStatusText(status)
+    }
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         color = Color.Black.copy(alpha = 0.5f)
     ) {
         Text(
-            text = trackingStatusText(status),
+            text = text,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium
