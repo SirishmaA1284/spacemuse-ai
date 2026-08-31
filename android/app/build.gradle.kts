@@ -65,6 +65,12 @@ dependencies {
     // classpath transitively; version must match android/camera/build.gradle.kts.
     implementation("androidx.camera:camera-core:1.3.4")
 
+    // ArScanScreen references TrackingState/TrackingFailureReason directly
+    // to render live AR status text — same transitive-visibility issue as
+    // camera-core above (:camera declares com.google.ar:core as
+    // implementation, not api); version must match android/camera/build.gradle.kts.
+    implementation("com.google.ar:core:1.54.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
