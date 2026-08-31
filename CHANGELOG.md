@@ -5,6 +5,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added (2026-08-31)
+- Phase 7 (Spatial/AR) Milestone 1: a new "Scan Room (AR)" entry point on
+  Home, separate from the existing single-photo scan flow. Adds the ARCore
+  SDK to the `:camera` module and a minimal `ArScanScreen` that shows live
+  camera passthrough plus tracking-state text — no plane detection,
+  measurement capture, or persistence yet (that's later milestones). Reports
+  a graceful fallback message on devices without ARCore / Google Play
+  Services for AR instead of crashing. This is the first ARCore code in the
+  repo and is unverified until confirmed on a real device.
+
+### Fixed (2026-08-31)
+- Room scan kept timing out on a real device even after raising the OkHttp
+  client timeout to 60s — root cause was `ImageCapture` having no
+  resolution/quality bound, capturing a multi-MB full-sensor-resolution
+  JPEG whose upload and Gemini processing both scaled with image size,
+  regardless of the client timeout. Capped capture to ~1280x960 @ JPEG
+  quality 85, and added a 45s `httpOptions.timeout` on the backend's Gemini
+  call itself so a stuck request fails with a clear reason instead of
+  hanging silently.
+
 ### Added (2026-08-25, cont'd 3)
 - New in-app Settings screen (gear icon on Home) to change the backend
   server URL at runtime — no rebuild needed. Fixes real-device testing:

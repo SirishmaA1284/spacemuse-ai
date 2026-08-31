@@ -39,4 +39,11 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+
+    // ARCore session + camera-passthrough rendering for the AR room scan
+    // (Phase 7, see docs/architecture/spatial-architecture.md). Deliberately
+    // NOT combined with the CameraX use cases above in the same preview —
+    // ARCore needs raw camera2 ownership via Session.setCameraTextureName,
+    // which conflicts with CameraX binding its own camera2 session.
+    implementation("com.google.ar:core:1.54.0")
 }

@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
+    <!-- Optional, not required: the app must stay installable and the
+         existing single-photo scan flow must keep working on devices
+         without ARCore / Google Play Services for AR (see ArAvailability). -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+
     <application
         android:name=".SpaceMuseApp"
         android:allowBackup="false"
@@ -14,6 +19,8 @@
         android:theme="@style/Theme.SpaceMuseAI"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
+
+        <meta-data android:name="com.google.ar.core" android:value="optional" />
 
         <activity
             android:name=".MainActivity"

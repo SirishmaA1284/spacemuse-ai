@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +37,7 @@ import com.spacemuse.ai.R
 // backend-URL Settings screen — needed on a real device, since the
 // emulator-only default base URL doesn't resolve there.
 @Composable
-fun HomeScreen(onScanMySpace: () -> Unit, onOpenSettings: () -> Unit) {
+fun HomeScreen(onScanMySpace: () -> Unit, onScanRoomAr: () -> Unit, onOpenSettings: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -105,6 +106,25 @@ fun HomeScreen(onScanMySpace: () -> Unit, onOpenSettings: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Milestone 1 of Phase 7 (see docs/architecture/spatial-architecture.md)
+            // — a separate entry point from "Scan My Space" above, not a
+            // replacement for it. Gracefully falls back on devices without
+            // ARCore (see ArAvailability in the ArScan screen).
+            OutlinedButton(
+                onClick = onScanRoomAr,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.home_scan_ar_cta),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
         }
 
         Surface(
