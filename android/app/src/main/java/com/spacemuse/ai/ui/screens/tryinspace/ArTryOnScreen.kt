@@ -7,17 +7,14 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,15 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
-import com.spacemuse.ai.camera.AnchorProjection
 import com.spacemuse.ai.camera.ArAvailability
 import com.spacemuse.ai.camera.ArAvailabilityResult
 import com.spacemuse.ai.camera.ArTrackingStatus
@@ -57,18 +50,18 @@ private sealed interface ArTryOnStep {
 // ESTIMATED value (see roomAnalysis.schema.ts's MeasurementSource) -- this
 // is a reasonable furniture-scale fallback, not a claim of accuracy.
 private const val DEFAULT_PRODUCT_WIDTH_METERS = 0.6f
-private val BASE_OVERLAY_SIZE = 200.dp
 
 // Milestone 5 of Phase 7 (Spatial/AR -- see
 // docs/architecture/spatial-architecture.md): anchor the Milestone 4
-// product-overlay idea into the live AR scene using a real ARCore Anchor
-// (ArTryOnPreview), sized using the anchor's real-world screen-space scale
-// (ADR-006's Level 4) rather than a fixed on-screen size. Pinch/twist
-// still let the user nudge the size/rotation manually on top of that
-// physical estimate, since product dimension data is frequently missing or
-// approximate. Persisting the placement + a dedicated buy flow is
-// Milestone 6 -- "View / Buy" here just reuses the existing
-// external-retailer-link pattern, same as Milestone 4.
+// product-overlay idea into the live AR scene using a real ARCore Anchor.
+// Rendering itself (position, real-world scale, surface-tilted
+// orientation) all happens inside ArTryOnPreview's GL layer now, not here
+// -- this screen just supplies the cutout product bitmap and its
+// real-world width, and shows the status text / bottom info panel around
+// the AR view. (An earlier version rendered a flat Compose overlay
+// on top instead, which never tilted/foreshortened with the actual
+// surface as the camera moved -- real user feedback led to moving
+// rendering into the AR scene itself; see ArTryOnPreview.kt.)
 @Composable
 fun ArTryOnScreen(onBack: () -> Unit) {
     var step by remember { mutableStateOf<ArTryOnStep>(ArTryOnStep.SearchProduct) }
@@ -99,12 +92,11 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
     var trackingStatus by remember { mutableStateOf<ArTrackingStatus?>(null) }
     var planeCount by remember { mutableStateOf(0) }
     var sessionError by remember { mutableStateOf<String?>(null) }
-    var anchorProjection by remember { mutableStateOf<AnchorProjection?>(null) }
+    var hasAnchor by remember { mutableStateOf(false) }
 
-    var userScale by remember { mutableStateOf(1f) }
-    var userRotation by remember { mutableStateOf(0f) }
-
-    val baseSizePx = with(LocalDensity.current) { BASE_OVERLAY_SIZE.toPx() }
+    val cutout = rememberProductCutout(product)
+    val cutoutBitmap = (cutout as? CutoutResult.Ready)?.bitmap
+    val widthMeters = product.widthCm?.let { it / 100f } ?: DEFAULT_PRODUCT_WIDTH_METERS
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
@@ -119,40 +111,13 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
             else -> {
                 ArTryOnPreview(
                     modifier = Modifier.fillMaxSize(),
+                    getProductBitmap = { cutoutBitmap },
+                    getProductWidthMeters = { widthMeters },
                     onTrackingStatusChanged = { trackingStatus = it },
                     onPlaneCountChanged = { planeCount = it },
                     onSessionError = { sessionError = it },
-                    onAnchorProjectionChanged = { anchorProjection = it }
+                    onAnchorPlaced = { hasAnchor = it }
                 )
-
-                anchorProjection?.let { projection ->
-                    val widthMeters = product.widthCm?.let { it / 100f } ?: DEFAULT_PRODUCT_WIDTH_METERS
-                    val physicalScale = (projection.pixelsPerMeter * widthMeters) / baseSizePx
-
-                    ProductOverlayImage(
-                        product = product,
-                        modifier = Modifier
-                            .size(BASE_OVERLAY_SIZE)
-                            .graphicsLayer {
-                                translationX = projection.screenX - baseSizePx / 2f
-                                translationY = projection.screenY - baseSizePx / 2f
-                                scaleX = physicalScale * userScale
-                                scaleY = physicalScale * userScale
-                                rotationZ = userRotation
-                            }
-                            .pointerInput(Unit) {
-                                // Pan is deliberately ignored here -- position
-                                // is anchor-driven (tap elsewhere on a plane
-                                // to move it), not draggable, so it can't
-                                // drift away from the real-world point it's
-                                // supposed to represent.
-                                detectTransformGestures { _, _, zoom, rotationChange ->
-                                    userScale = (userScale * zoom).coerceIn(0.3f, 3f)
-                                    userRotation += rotationChange
-                                }
-                            }
-                    )
-                }
 
                 // Stacked in a Column, not two independently
                 // bottom-aligned composables with a guessed padding gap --
@@ -171,7 +136,8 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
                         modifier = Modifier.padding(bottom = 12.dp),
                         status = trackingStatus,
                         planeCount = planeCount,
-                        hasAnchor = anchorProjection != null
+                        hasAnchor = hasAnchor,
+                        cutoutReady = cutoutBitmap != null
                     )
 
                     Column(
@@ -203,9 +169,16 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
 }
 
 @Composable
-private fun StatusBadge(modifier: Modifier = Modifier, status: ArTrackingStatus?, planeCount: Int, hasAnchor: Boolean) {
+private fun StatusBadge(
+    modifier: Modifier = Modifier,
+    status: ArTrackingStatus?,
+    planeCount: Int,
+    hasAnchor: Boolean,
+    cutoutReady: Boolean
+) {
     val text = if (status?.state == TrackingState.TRACKING) {
         when {
+            !cutoutReady -> "Preparing product photo…"
             hasAnchor -> "Pinch to resize, twist to rotate — tap elsewhere to move it"
             planeCount == 0 -> "Move your phone to find a wall or floor"
             else -> "Tap a wall or floor to place it — planes detected: $planeCount"

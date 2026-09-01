@@ -52,7 +52,7 @@ private const val LOG_TAG = "ProductCutout"
 // stayed broken across two pushes with no way to tell why. Now the
 // specific failure step is tracked and surfaced as a small on-screen
 // caption so a screenshot alone is enough to diagnose it.
-private sealed interface CutoutResult {
+internal sealed interface CutoutResult {
     data class Ready(val bitmap: Bitmap) : CutoutResult
     data object Loading : CutoutResult
     data class Unavailable(val reason: String) : CutoutResult
@@ -62,12 +62,23 @@ private val subjectSegmenter = SubjectSegmentation.getClient(
     SubjectSegmenterOptions.Builder().enableForegroundBitmap().build()
 )
 
+// Reusable hook for callers that need the raw cutout Bitmap without
+// Compose rendering it themselves -- e.g. ArTryOnScreen (Milestone 5)
+// hands the bitmap down into the GL layer instead of drawing it in
+// Compose. ProductOverlayImage below is the Compose-rendering wrapper for
+// callers (Milestone 4) that do want it drawn directly.
 @Composable
-internal fun ProductOverlayImage(product: Product, modifier: Modifier) {
+internal fun rememberProductCutout(product: Product): CutoutResult {
     val context = LocalContext.current
     val cutoutResult by produceState<CutoutResult>(initialValue = CutoutResult.Loading, key1 = product.imageUrl) {
         value = cutOutProductPhoto(context, product.imageUrl)
     }
+    return cutoutResult
+}
+
+@Composable
+internal fun ProductOverlayImage(product: Product, modifier: Modifier) {
+    val cutoutResult = rememberProductCutout(product)
 
     // The caller's full modifier chain (size, graphicsLayer transform,
     // pointerInput gesture) goes on this Box; the image/caption inside
