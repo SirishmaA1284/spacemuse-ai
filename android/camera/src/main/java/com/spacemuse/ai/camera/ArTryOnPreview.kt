@@ -69,7 +69,8 @@ fun ArTryOnPreview(
     onTrackingStatusChanged: (ArTrackingStatus) -> Unit = {},
     onPlaneCountChanged: (Int) -> Unit = {},
     onSessionError: (String) -> Unit = {},
-    onAnchorPlaced: (Boolean) -> Unit = {}
+    onAnchorPlaced: (Boolean) -> Unit = {},
+    onProductDebug: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -136,7 +137,8 @@ fun ArTryOnPreview(
                         onTrackingStatusChanged = onTrackingStatusChanged,
                         onPlaneCountChanged = onPlaneCountChanged,
                         onRendererError = onSessionError,
-                        onAnchorPlaced = onAnchorPlaced
+                        onAnchorPlaced = onAnchorPlaced,
+                        onProductDebug = onProductDebug
                     )
                 )
                 renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -232,7 +234,8 @@ private class ArTryOnRenderer(
     private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
     private val onPlaneCountChanged: (Int) -> Unit,
     private val onRendererError: (String) -> Unit,
-    private val onAnchorPlaced: (Boolean) -> Unit
+    private val onAnchorPlaced: (Boolean) -> Unit,
+    private val onProductDebug: (String) -> Unit
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
     private val planeRenderer = PlaneRenderer()
@@ -370,33 +373,62 @@ private class ArTryOnRenderer(
         return Vec3.normalizeOrFallback(projected, fallback = floatArrayOf(0f, 0f, 1f))
     }
 
+    // User reported the product simply doesn't appear at all after placing
+    // it, despite the status text confirming an anchor exists and the
+    // cutout bitmap is ready -- with no logcat access, and every plausible
+    // cause (a silently-thrown exception partway through, a degenerate/
+    // zero-size quad, a bitmap GL rejects) all looking equally likely from
+    // reading the code alone, this reports exactly what happened each
+    // frame instead of guessing further.
     private fun drawPlacedProduct(camera: Camera, viewMatrix: FloatArray, projectionMatrix: FloatArray) {
-        val current = placedAnchor ?: return
-        if (current.anchor.trackingState != TrackingState.TRACKING) return
-        val bitmap = getProductBitmap() ?: return
+        val current = placedAnchor
+        if (current == null) {
+            onProductDebug("no anchor placed yet")
+            return
+        }
+        if (current.anchor.trackingState != TrackingState.TRACKING) {
+            onProductDebug("anchor not tracking (${current.anchor.trackingState})")
+            return
+        }
+        val bitmap = getProductBitmap()
+        if (bitmap == null) {
+            onProductDebug("anchor placed, no bitmap yet")
+            return
+        }
 
-        val normal = Vec3.normalizeOrFallback(current.anchor.pose.yAxis, fallback = floatArrayOf(0f, 1f, 0f))
-        // Re-derived each frame from the live (possibly ARCore-refined)
-        // normal and the frozen reference, Gram-Schmidt style, so right/up
-        // stay a valid orthonormal basis even if the anchor's exact tilt
-        // shifts slightly over time.
-        var right = Vec3.cross(current.referenceUp, normal)
-        if (Vec3.length(right) < 0.0001f) right = floatArrayOf(1f, 0f, 0f) // reference nearly parallel to normal; arbitrary stable fallback
-        right = Vec3.normalizeOrFallback(right, fallback = floatArrayOf(1f, 0f, 0f))
-        val up = Vec3.cross(normal, right)
+        try {
+            val normal = Vec3.normalizeOrFallback(current.anchor.pose.yAxis, fallback = floatArrayOf(0f, 1f, 0f))
+            // Re-derived each frame from the live (possibly ARCore-refined)
+            // normal and the frozen reference, Gram-Schmidt style, so right/up
+            // stay a valid orthonormal basis even if the anchor's exact tilt
+            // shifts slightly over time.
+            var right = Vec3.cross(current.referenceUp, normal)
+            if (Vec3.length(right) < 0.0001f) right = floatArrayOf(1f, 0f, 0f) // reference nearly parallel to normal; arbitrary stable fallback
+            right = Vec3.normalizeOrFallback(right, fallback = floatArrayOf(1f, 0f, 0f))
+            val up = Vec3.cross(normal, right)
 
-        // User pinch/rotate applied on top of the physical width: scale
-        // both right/up uniformly (keeps the image's own aspect ratio,
-        // which is what determines height -- see ArTryOnScreen), and spin
-        // the right/up basis around the surface normal for the twist
-        // gesture.
-        val (rotatedRight, rotatedUp) = rotateAroundAxis(right, up, normal, userRotation)
+            // User pinch/rotate applied on top of the physical width: scale
+            // both right/up uniformly (keeps the image's own aspect ratio,
+            // which is what determines height -- see ArTryOnScreen), and spin
+            // the right/up basis around the surface normal for the twist
+            // gesture.
+            val (rotatedRight, rotatedUp) = rotateAroundAxis(right, up, normal, userRotation)
 
-        val widthMeters = getProductWidthMeters() * userScale
-        val heightMeters = widthMeters * (bitmap.height.toFloat() / bitmap.width.toFloat())
+            val widthMeters = getProductWidthMeters() * userScale
+            val heightMeters = widthMeters * (bitmap.height.toFloat() / bitmap.width.toFloat())
 
-        val center = floatArrayOf(current.anchor.pose.tx(), current.anchor.pose.ty(), current.anchor.pose.tz())
-        productQuadRenderer.draw(bitmap, center, rotatedRight, rotatedUp, widthMeters, heightMeters, viewMatrix, projectionMatrix)
+            val center = floatArrayOf(current.anchor.pose.tx(), current.anchor.pose.ty(), current.anchor.pose.tz())
+            productQuadRenderer.draw(bitmap, center, rotatedRight, rotatedUp, widthMeters, heightMeters, viewMatrix, projectionMatrix)
+
+            onProductDebug(
+                "drew %.2fx%.2fm at (%.2f,%.2f,%.2f) bitmap=%dx%d recycled=%b".format(
+                    widthMeters, heightMeters, center[0], center[1], center[2],
+                    bitmap.width, bitmap.height, bitmap.isRecycled
+                )
+            )
+        } catch (e: Exception) {
+            onProductDebug("draw failed: ${e::class.simpleName}: ${e.message}")
+        }
     }
 
     // Rotates the right/up basis vectors around `axis` (the surface
