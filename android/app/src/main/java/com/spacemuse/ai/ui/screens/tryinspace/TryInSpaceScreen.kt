@@ -47,7 +47,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImage
 import com.spacemuse.ai.camera.CameraPreview
 import com.spacemuse.ai.core.model.Product
 
@@ -206,9 +205,8 @@ private fun ComposeStep(
         // rotation accumulate directly, scale multiplies and is clamped so
         // the product photo can't be pinched away to nothing or off-screen
         // huge.
-        AsyncImage(
-            model = product.imageUrl,
-            contentDescription = null,
+        ProductOverlayImage(
+            product = product,
             modifier = Modifier
                 .align(Alignment.Center)
                 .size(160.dp)

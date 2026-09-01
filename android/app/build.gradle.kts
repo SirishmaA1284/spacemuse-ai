@@ -79,6 +79,16 @@ dependencies {
     // not worth re-deriving blind (no local build/run in this environment).
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    // Cuts the product out of its (usually white/plain studio) background
+    // before compositing, instead of pasting the raw retailer photo as a
+    // rectangle -- real user feedback after seeing Milestone 4 render as a
+    // floating white card. On-device, Play-Services-backed (downloads its
+    // segmentation model on first use, same lazy-download shape as
+    // ARCore's own optional Play Services module) -- deliberately not a
+    // backend/network round trip. minSdk requirement is 24; this app's is
+    // already 26.
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

@@ -38,7 +38,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImage
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
 import com.spacemuse.ai.camera.AnchorProjection
@@ -130,9 +129,8 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
                     val widthMeters = product.widthCm?.let { it / 100f } ?: DEFAULT_PRODUCT_WIDTH_METERS
                     val physicalScale = (projection.pixelsPerMeter * widthMeters) / baseSizePx
 
-                    AsyncImage(
-                        model = product.imageUrl,
-                        contentDescription = null,
+                    ProductOverlayImage(
+                        product = product,
                         modifier = Modifier
                             .size(BASE_OVERLAY_SIZE)
                             .graphicsLayer {
