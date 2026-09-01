@@ -71,6 +71,14 @@ dependencies {
     // implementation, not api); version must match android/camera/build.gradle.kts.
     implementation("com.google.ar:core:1.54.0")
 
+    // TryInSpaceScreen (Milestone 4 of Phase 7 — product image overlay) loads
+    // a product photo from its retailer imageUrl. Coil is the standard
+    // Compose-native image loader (AsyncImage) — deliberately not a
+    // hand-rolled OkHttp+BitmapFactory loader, since correct threading/
+    // caching/error-state handling for network images is a solved problem
+    // not worth re-deriving blind (no local build/run in this environment).
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

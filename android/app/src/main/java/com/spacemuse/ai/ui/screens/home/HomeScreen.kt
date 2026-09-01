@@ -37,7 +37,12 @@ import com.spacemuse.ai.R
 // backend-URL Settings screen — needed on a real device, since the
 // emulator-only default base URL doesn't resolve there.
 @Composable
-fun HomeScreen(onScanMySpace: () -> Unit, onScanRoomAr: () -> Unit, onOpenSettings: () -> Unit) {
+fun HomeScreen(
+    onScanMySpace: () -> Unit,
+    onScanRoomAr: () -> Unit,
+    onTryInSpace: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -122,6 +127,26 @@ fun HomeScreen(onScanMySpace: () -> Unit, onScanRoomAr: () -> Unit, onOpenSettin
             ) {
                 Text(
                     text = stringResource(R.string.home_scan_ar_cta),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Milestone 4 of Phase 7 — product image overlay compositing on
+            // a static room photo. Deliberately independent of the AR scan
+            // flow above (searches products directly, then captures its
+            // own room photo) rather than requiring a completed AR/photo
+            // scan first — see docs/architecture/spatial-architecture.md.
+            OutlinedButton(
+                onClick = onTryInSpace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.home_try_in_space_cta),
                     style = MaterialTheme.typography.titleMedium
                 )
             }
