@@ -160,22 +160,33 @@ fun ArScanScreen(onBack: () -> Unit) {
                     onPhotoCaptured = ::uploadRoom,
                     onCaptureError = { message -> createState = CreateRoomState.Error(message) }
                 )
-                TrackingStatusBadge(
+                // Stacked in a Column (rather than two independently
+                // bottom-aligned composables with a guessed padding gap
+                // between them) so the badge and panel never overlap
+                // regardless of the panel's actual height — that guess
+                // previously assumed the panel was hidden until the first
+                // measurement, but it's always visible while Idle (title +
+                // disabled Finish Scan button even at zero measurements).
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = if (measurements.isEmpty()) 40.dp else 180.dp),
-                    status = trackingStatus,
-                    planeCount = planeCount,
-                    hasPendingPoint = hasPendingPoint
-                )
-
-                if (createState is CreateRoomState.Idle) {
-                    MeasurementPanel(
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                        measurements = measurements,
-                        onRemove = { target -> measurements = measurements.filter { it !== target } },
-                        onFinishScan = ::finishScan
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    TrackingStatusBadge(
+                        modifier = Modifier.padding(bottom = 12.dp),
+                        status = trackingStatus,
+                        planeCount = planeCount,
+                        hasPendingPoint = hasPendingPoint
                     )
+
+                    if (createState is CreateRoomState.Idle) {
+                        MeasurementPanel(
+                            measurements = measurements,
+                            onRemove = { target -> measurements = measurements.filter { it !== target } },
+                            onFinishScan = ::finishScan
+                        )
+                    }
                 }
             }
         }
