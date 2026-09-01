@@ -2,7 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { handleDesignModification } from "../../../agents/coordinatorAgent.js";
 import { analyzeRoom } from "../../../agents/roomAnalysisAgent.js";
+import { createRoomFromScan } from "../../../agents/roomCaptureAgent.js";
 import { searchProducts } from "../../../agents/shoppingAgent.js";
+import { RoomMeasurementResultSchema, RoomTypeEnum } from "../../../ai/schemas/roomAnalysis.schema.js";
 import { isGeminiConfigured } from "../../../config/env.js";
 
 export const v1Router = Router();
@@ -24,6 +26,27 @@ v1Router.post("/rooms/analyze", async (req, res) => {
   }
   const analysis = await analyzeRoom(parsed.data);
   res.json(analysis);
+});
+
+// Separate from /rooms/analyze (which stays stateless — nothing depends on
+// it starting to persist as a side effect). This is the first-ever write
+// path into Room/RoomObject/RoomMeasurement; see roomCaptureAgent.ts.
+const RoomCreateSchema = z.object({
+  imageBase64: z.string().min(1),
+  roomType: RoomTypeEnum.optional(),
+  measuredMeasurements: z
+    .array(RoomMeasurementResultSchema.extend({ measurementSource: z.literal("MEASURED") }))
+    .default([]),
+});
+
+v1Router.post("/rooms", async (req, res) => {
+  const parsed = RoomCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_request", details: parsed.error.flatten() });
+    return;
+  }
+  const result = await createRoomFromScan(parsed.data);
+  res.json(result);
 });
 
 const ModifyDesignSchema = z.object({
