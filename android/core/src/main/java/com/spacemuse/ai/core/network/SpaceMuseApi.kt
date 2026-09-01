@@ -1,8 +1,10 @@
 package com.spacemuse.ai.core.network
 
+import com.spacemuse.ai.core.model.CreateRoomResponse
 import com.spacemuse.ai.core.model.ProductSearchResponse
 import com.spacemuse.ai.core.model.RoomAnalysis
 import com.spacemuse.ai.core.model.RoomAnalyzeRequest
+import com.spacemuse.ai.core.model.RoomCreateRequest
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -12,6 +14,9 @@ import retrofit2.http.Query
 interface SpaceMuseApi {
     @POST("rooms/analyze")
     suspend fun analyzeRoom(@Body request: RoomAnalyzeRequest): RoomAnalysis
+
+    @POST("rooms")
+    suspend fun createRoom(@Body request: RoomCreateRequest): CreateRoomResponse
 
     @GET("products/search")
     suspend fun searchProducts(@Query("q") query: String): ProductSearchResponse

@@ -16,9 +16,20 @@ flag — never presented to the user without that distinction (spec section 9).
 
 ## Status
 
-Not yet implemented. `android/camera/` currently captures images only; the
-ARCore session, depth reconciliation, and the `spatial/` module itself are
-scheduled for Phase 7 per `docs/development/roadmap.md`, after room
-understanding (Phase 2) and intent detection (Phase 3) land. Building
-spatial measurement before room understanding exists would have nothing to
-attach measurements to, hence the ordering.
+In progress, built as a sequence of milestones inside `android/camera/`'s
+`ArCameraPreview`/`ArScanScreen` (no separate `spatial/` module yet):
+
+1. **Done** — ARCore session lifecycle + camera passthrough (`BackgroundRenderer`).
+2. **Done** — horizontal/vertical plane detection, visualized via `PlaneRenderer`.
+3. **Done** — tap-to-measure: two plane hits produce a real-world distance
+   (`MeasurementRenderer` for the on-screen markers/lines), and "Finish Scan"
+   captures a photo + POSTs it with the collected `MEASURED` measurements to
+   `POST /rooms` (`backend/src/agents/roomCaptureAgent.ts`), which persists
+   alongside Gemini's `ESTIMATED` object list from `analyzeRoom()`. No
+   object-level fusion between the two lists yet (see the measurement trust
+   order above) — deliberately deferred.
+
+Not yet done: depth-API-based reconciliation, and any measurement UI beyond
+straight point-to-point distance (e.g. area/volume). Every milestone above
+is unverified until confirmed on a real device — this environment has no
+Android SDK/emulator to build or run against locally.

@@ -63,3 +63,20 @@ data class RoomAnalysis(
     val summary: String,
     val source: String // "gemini" | "demo" — demo must be shown as such in the UI, never as a real scan
 )
+
+// Mirrors RoomCreateSchema in backend/src/api/v1/routes/router.ts (Milestone
+// 3 of Phase 7 — AR-measured room persistence). measuredMeasurements must
+// all carry measurementSource == "MEASURED"; the backend rejects anything
+// else with a 400.
+@Serializable
+data class RoomCreateRequest(
+    val imageBase64: String,
+    val roomType: String? = null,
+    val measuredMeasurements: List<RoomMeasurementModel> = emptyList()
+)
+
+@Serializable
+data class CreateRoomResponse(
+    val roomId: String,
+    val analysis: RoomAnalysis
+)

@@ -6,12 +6,12 @@ actual state, updated as work lands.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Foundation (repo, docs, ADRs, env config) | **Done** |
-| 2 | Camera + Room Intelligence | **In progress** — `rooms/analyze` wired to real Gemini vision with a deterministic demo fallback; Android capture flow calls it end-to-end. AR measurement / spatial scanning still not started |
+| 2 | Camera + Room Intelligence | **In progress** — `rooms/analyze` wired to real Gemini vision with a deterministic demo fallback; Android capture flow calls it end-to-end. AR measurement now lands via Phase 7's `POST /rooms` (see below) |
 | 3 | Intent Detection | **Done** (Gemini + rule-based fallback) |
 | 4 | Design Reasoning (rearrange/color/lighting/furniture agents) | Not started |
 | 5 | Gemini Live | Not started |
 | 6 | Gemma On-Device | Module scaffold only |
-| 7 | Spatial / AR | Not started |
+| 7 | Spatial / AR | **In progress** — see `docs/architecture/spatial-architecture.md` for milestone status (passthrough, plane detection, and tap-to-measure + persistence all land; depth-API reconciliation and object-level measurement fusion don't) |
 | 8 | Visualization (image-based) | Not started |
 | 9 | Real Product Discovery | `GET /products/search` wired to a Shopping Agent (`backend/src/agents/shoppingAgent.ts`) over `GoogleShoppingProvider`, returning real results as of 2026-08-25 (`SERPAPI_KEY` configured). Amazon/Flipkart providers still not built |
 | 10 | Try-In-Space | Not started |
