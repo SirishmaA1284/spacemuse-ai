@@ -3,13 +3,22 @@ package com.spacemuse.ai.ui.screens.tryinspace
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -23,6 +32,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
+private const val LOG_TAG = "ProductCutout"
+
 // Real user feedback on Milestone 4: overlaying a product's raw retailer
 // photo as-is rendered as a floating white rectangle, since most product
 // photography is shot on a plain white/studio background -- not a usable
@@ -35,6 +46,18 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 // old white-card look) on ANY failure -- no network, decode failure, model
 // not yet downloaded -- so a segmentation problem degrades the feature
 // instead of breaking it outright.
+//
+// The fallback used to be silent, which made a real-device failure
+// undiagnosable from here (no logcat access in this environment) -- it
+// stayed broken across two pushes with no way to tell why. Now the
+// specific failure step is tracked and surfaced as a small on-screen
+// caption so a screenshot alone is enough to diagnose it.
+private sealed interface CutoutResult {
+    data class Ready(val bitmap: Bitmap) : CutoutResult
+    data object Loading : CutoutResult
+    data class Unavailable(val reason: String) : CutoutResult
+}
+
 private val subjectSegmenter = SubjectSegmentation.getClient(
     SubjectSegmenterOptions.Builder().enableForegroundBitmap().build()
 )
@@ -42,24 +65,42 @@ private val subjectSegmenter = SubjectSegmentation.getClient(
 @Composable
 internal fun ProductOverlayImage(product: Product, modifier: Modifier) {
     val context = LocalContext.current
-    val cutoutBitmap by produceState<Bitmap?>(initialValue = null, key1 = product.imageUrl) {
+    val cutoutResult by produceState<CutoutResult>(initialValue = CutoutResult.Loading, key1 = product.imageUrl) {
         value = cutOutProductPhoto(context, product.imageUrl)
     }
 
-    val bitmap = cutoutBitmap
-    if (bitmap != null) {
-        Image(bitmap = bitmap.asImageBitmap(), contentDescription = null, modifier = modifier)
-    } else {
-        // Covers both "still processing" and "gave up" -- Coil loads the
-        // same URL either way, so there's no separate loading state to
-        // manage; this just gets swapped out once/if the cutout lands.
-        AsyncImage(model = product.imageUrl, contentDescription = null, modifier = modifier)
+    // The caller's full modifier chain (size, graphicsLayer transform,
+    // pointerInput gesture) goes on this Box; the image/caption inside
+    // just fill it, so both visually transform together.
+    Box(modifier = modifier) {
+        when (val result = cutoutResult) {
+            is CutoutResult.Ready ->
+                Image(bitmap = result.bitmap.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
+
+            CutoutResult.Loading, is CutoutResult.Unavailable ->
+                // Covers "still processing" and "gave up" the same way --
+                // Coil loads the same URL either way, so there's no
+                // separate loading placeholder to manage; this just gets
+                // swapped out if/when the cutout lands.
+                AsyncImage(model = product.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+        }
+
+        (cutoutResult as? CutoutResult.Unavailable)?.let { unavailable ->
+            Text(
+                text = "cutout: ${unavailable.reason}",
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(2.dp),
+                color = Color.Red,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
     }
 }
 
-private suspend fun cutOutProductPhoto(context: Context, imageUrl: String?): Bitmap? {
-    if (imageUrl == null) return null
-    return try {
+private suspend fun cutOutProductPhoto(context: Context, imageUrl: String?): CutoutResult {
+    if (imageUrl == null) return CutoutResult.Unavailable("no image URL")
+    try {
         val loader = ImageLoader(context)
         val request = ImageRequest.Builder(context)
             .data(imageUrl)
@@ -68,13 +109,28 @@ private suspend fun cutOutProductPhoto(context: Context, imageUrl: String?): Bit
             // that, so request a software-backed bitmap explicitly.
             .allowHardware(false)
             .build()
-        val result = loader.execute(request) as? SuccessResult ?: return null
-        val sourceBitmap = (result.drawable as? BitmapDrawable)?.bitmap ?: return null
+        val result = loader.execute(request) as? SuccessResult
+        if (result == null) {
+            Log.w(LOG_TAG, "Coil load did not return SuccessResult for $imageUrl")
+            return CutoutResult.Unavailable("photo download failed")
+        }
+
+        val sourceBitmap = (result.drawable as? BitmapDrawable)?.bitmap
+        if (sourceBitmap == null) {
+            Log.w(LOG_TAG, "Loaded drawable was not a BitmapDrawable: ${result.drawable::class.simpleName}")
+            return CutoutResult.Unavailable("unexpected image format")
+        }
 
         val inputImage = InputImage.fromBitmap(sourceBitmap, 0)
-        subjectSegmenter.process(inputImage).await().foregroundBitmap
+        val segmentationResult = subjectSegmenter.process(inputImage).await()
+        val foreground = segmentationResult.foregroundBitmap
+        if (foreground == null) {
+            return CutoutResult.Unavailable("no subject detected")
+        }
+        return CutoutResult.Ready(foreground)
     } catch (e: Exception) {
-        null
+        Log.e(LOG_TAG, "Subject segmentation failed for $imageUrl", e)
+        return CutoutResult.Unavailable(e::class.simpleName + ": " + (e.message ?: "no message"))
     }
 }
 
