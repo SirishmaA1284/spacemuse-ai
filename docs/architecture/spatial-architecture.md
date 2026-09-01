@@ -29,17 +29,33 @@ In progress, built as a sequence of milestones inside `android/camera/`'s
    Gemini's `ESTIMATED` object list from `analyzeRoom()`. No object-level
    fusion between the two lists yet (see the measurement trust order above)
    — deliberately deferred.
-4. **Done, confirmed on-device** — product image overlay compositing
-   (`TryInSpaceScreen`, in `android/app`, not `:camera` — no AR/ARCore
-   involved): search a product, take a static room photo, then
-   drag/pinch/rotate the product's photo on top of it
-   (`Modifier.graphicsLayer` + `detectTransformGestures`). Deliberately
-   independent of the AR scan flow — no anchor, no real-world scale, no
-   persistence. The product photo is background-removed before
-   compositing via ML Kit Subject Segmentation (`ProductCutout.kt`,
-   shared with Milestone 5) — a real user-reported bug (raw retailer
-   photos rendering as floating white cards) surfaced and fixed this after
-   the milestone first shipped.
+4. **Done, confirmed on-device, since made measurement-aware** — product
+   image overlay compositing (`TryInSpaceScreen`, in `android/app`, not
+   `:camera` for the compositing UI itself): search a product, take a room
+   photo, then drag/pinch/rotate the product's photo on top of it
+   (`Modifier.graphicsLayer` + `detectTransformGestures`). The product
+   photo is background-removed before compositing via ML Kit Subject
+   Segmentation (`ProductCutout.kt`, shared with Milestone 5) — a real
+   user-reported bug (raw retailer photos rendering as floating white
+   cards) surfaced and fixed this after the milestone first shipped. The
+   room photo is now captured through the AR camera (`ArPhotoCapture.kt`,
+   `:camera`) rather than a plain one: an *optional* tap on a plane before
+   capturing records a real-world scale reference (screen pixels per metre
+   at that point's depth, computed once at the moment of capture — the
+   same screen-space projection technique the pre-3D-rework version of
+   Milestone 5 used, reused here since a static photo has no ongoing 3D
+   scene to render into), used to size the product correctly by default
+   instead of an arbitrary fixed size; pinch still adjusts freely on top,
+   now clamped relative to that starting scale rather than a fixed
+   absolute range. Skipping the tap falls back to the original fixed-size
+   behavior. Devices without ARCore fall back further, to a plain CameraX
+   capture with no scale reference at all — same graceful-degrade pattern
+   as `ArScanScreen`. `ArPhotoCapture` is a third, independent AR
+   composable/renderer (alongside `ArCameraPreview` and `ArTryOnPreview`)
+   rather than reusing either — it only needs a single-tap "set a reference
+   point" semantic, different from both of the others' tap behavior, and
+   this repo's established pattern for a new AR tap semantic is a new file,
+   not a mode flag on an already-working one.
 5. **Done, real-world-oriented rendering added after initial user
    feedback** — AR-anchored placement (`ArTryOnPreview`/`ArTryOnScreen`):
    tap a plane to drop a real ARCore `Anchor`. The product's (background-
@@ -69,11 +85,7 @@ In progress, built as a sequence of milestones inside `android/camera/`'s
 
 Not yet done: depth-API-based reconciliation, placement persistence
 (Milestone 6 — a `Visualization` row + dedicated buy flow, "View / Buy" for
-now just opens the retailer link), and making the *static-photo* flow
-(Milestone 4) measurement-aware the way Milestone 5 is (would need
-capturing that photo through the AR camera to get a scale reference, since
-a plain photo alone carries no depth information) — also any measurement
-UI beyond straight point-to-point distance (e.g. area/volume). The
-Milestone 5 GL rewrite above is unverified until confirmed on a real
-device — this environment has no Android SDK/emulator to build or run
-against locally.
+now just opens the retailer link), and any measurement UI beyond straight
+point-to-point distance (e.g. area/volume). Milestone 4's measurement-aware
+rework above is unverified until confirmed on a real device — this
+environment has no Android SDK/emulator to build or run against locally.
