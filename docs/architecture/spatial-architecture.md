@@ -34,13 +34,24 @@ In progress, built as a sequence of milestones inside `android/camera/`'s
    product, take a static room photo, then drag/pinch/rotate the product's
    photo on top of it (`Modifier.graphicsLayer` + `detectTransformGestures`).
    Deliberately independent of the AR scan flow — no anchor, no real-world
-   scale, no persistence. Sets up Milestone 5 (anchor the same overlay into
-   the live AR scene via a real ARCore `Anchor`, scaled using a Milestone
-   3-captured room's measurements) and Milestone 6 (persist the placement as
-   a `Visualization` row + a dedicated buy flow).
+   scale, no persistence.
+5. **Done** — AR-anchored placement (`ArTryOnPreview`/`ArTryOnScreen`): tap
+   a plane to drop a real ARCore `Anchor`, then project its live
+   screen-space position every frame (`ArTryOnPreview.kt`'s
+   `AnchorProjection` — standard clip-space → NDC → pixel projection using
+   the camera's view/projection matrices, same matrices `BackgroundRenderer`/
+   `PlaneRenderer` already use) so the product photo overlay tracks it and
+   is sized using "pixels per real-world metre at the anchor's depth"
+   (ADR-006's Level 4). Deliberately a separate composable/renderer from
+   `ArCameraPreview` (Milestones 1-3) rather than a second tap mode on that
+   state machine, to avoid regression risk on the now-confirmed-working
+   measurement flow. Product real-world width comes from `Product.widthCm`
+   when present, else a furniture-scale fallback (60cm) — pinch/twist let
+   the user nudge size/rotation manually on top of that estimate.
 
-Not yet done: depth-API-based reconciliation, AR-anchored placement
-(Milestone 5), placement persistence (Milestone 6), and any measurement UI
-beyond straight point-to-point distance (e.g. area/volume). Every milestone
-above is unverified until confirmed on a real device — this environment has
-no Android SDK/emulator to build or run against locally.
+Not yet done: depth-API-based reconciliation, placement persistence
+(Milestone 6 — a `Visualization` row + dedicated buy flow, "View / Buy" for
+now just opens the retailer link), and any measurement UI beyond straight
+point-to-point distance (e.g. area/volume). Every milestone above is
+unverified until confirmed on a real device — this environment has no
+Android SDK/emulator to build or run against locally.

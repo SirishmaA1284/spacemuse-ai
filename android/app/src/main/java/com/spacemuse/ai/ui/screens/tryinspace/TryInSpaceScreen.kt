@@ -15,8 +15,6 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,25 +25,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,26 +45,16 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.spacemuse.ai.camera.CameraPreview
 import com.spacemuse.ai.core.model.Product
-import com.spacemuse.ai.core.network.ApiClient
-import kotlinx.coroutines.launch
 
 private sealed interface TryInSpaceStep {
     data object SearchProduct : TryInSpaceStep
     data class CaptureRoomPhoto(val product: Product) : TryInSpaceStep
     data class Compose(val product: Product, val roomPhotoJpeg: ByteArray) : TryInSpaceStep
-}
-
-private sealed interface SearchState {
-    data object Idle : SearchState
-    data object Loading : SearchState
-    data class Loaded(val results: List<Product>) : SearchState
-    data class Error(val message: String) : SearchState
 }
 
 // Milestone 4 of Phase 7 (Spatial/AR — see
@@ -83,10 +63,11 @@ private sealed interface SearchState {
 // independently of the AR scan flow (no anchoring, no live AR scene) —
 // search a product, take a photo of your room, then drag/pinch/rotate the
 // product's photo on top of it. AR-anchored placement (using the room's
-// real-world measurements from Milestone 3) is Milestone 5; persisting the
-// placement plus a dedicated "Buy" flow is Milestone 6 — this screen's
-// "View / Buy" link just reuses the existing external-retailer-link
-// pattern already used by CameraScreen's product results, nothing new.
+// real-world measurements from Milestone 3) is Milestone 5
+// (ArTryOnScreen.kt); persisting the placement plus a dedicated "Buy" flow
+// is Milestone 6 — this screen's "View / Buy" link just reuses the
+// existing external-retailer-link pattern already used by CameraScreen's
+// product results, nothing new.
 @Composable
 fun TryInSpaceScreen(onBack: () -> Unit) {
     var step by remember { mutableStateOf<TryInSpaceStep>(TryInSpaceStep.SearchProduct) }
@@ -108,124 +89,6 @@ fun TryInSpaceScreen(onBack: () -> Unit) {
                 onRetakePhoto = { step = TryInSpaceStep.CaptureRoomPhoto(current.product) },
                 onDone = onBack
             )
-    }
-}
-
-@Composable
-private fun ProductSearchStep(onBack: () -> Unit, onProductSelected: (Product) -> Unit) {
-    val coroutineScope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var searchState by remember { mutableStateOf<SearchState>(SearchState.Idle) }
-
-    fun search() {
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) return
-        searchState = SearchState.Loading
-        coroutineScope.launch {
-            try {
-                val response = ApiClient.api.searchProducts(trimmed)
-                searchState = if (response.providersConfigured) {
-                    SearchState.Loaded(response.results)
-                } else {
-                    SearchState.Error(
-                        "No shopping provider is configured on the backend yet. " +
-                            "Add a product API key (e.g. SERPAPI_KEY) to enable search."
-                    )
-                }
-            } catch (error: Exception) {
-                searchState = SearchState.Error(error.message ?: "Could not reach the SpaceMuse AI backend.")
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        TopBar(title = "Try a product", onBack = onBack)
-
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = "Search for a product to try in your room",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    placeholder = { Text("e.g. sofa, floor lamp") },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Button(onClick = ::search) { Text("Search") }
-            }
-        }
-
-        when (val state = searchState) {
-            SearchState.Idle -> Unit
-
-            SearchState.Loading -> Box(
-                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
-
-            is SearchState.Error -> Text(
-                text = state.message,
-                modifier = Modifier.padding(20.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error
-            )
-
-            is SearchState.Loaded ->
-                if (state.results.isEmpty()) {
-                    Text(
-                        text = "No products found for \"$query\".",
-                        modifier = Modifier.padding(20.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-                        items(state.results) { product ->
-                            ProductSearchRow(product = product, onClick = { onProductSelected(product) })
-                        }
-                    }
-                }
-        }
-    }
-}
-
-@Composable
-private fun ProductSearchRow(product: Product, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(
-            model = product.imageUrl,
-            contentDescription = null,
-            modifier = Modifier
-                .size(56.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = product.name, style = MaterialTheme.typography.bodyMedium)
-            product.brand?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Text(
-            text = formatPrice(product.priceMinor, product.currency),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
@@ -312,7 +175,7 @@ private fun CaptureRoomPhotoStep(onBack: () -> Unit, onPhotoCaptured: (ByteArray
             }
         }
 
-        TopBar(title = "Photograph your room", onBack = onBack)
+        TryInSpaceTopBar(title = "Photograph your room", onBack = onBack)
     }
 }
 
@@ -365,7 +228,7 @@ private fun ComposeStep(
                 }
         )
 
-        TopBar(title = "Try it out — drag, pinch, rotate", onBack = onDone)
+        TryInSpaceTopBar(title = "Try it out — drag, pinch, rotate", onBack = onDone)
 
         Column(
             modifier = Modifier
@@ -394,38 +257,4 @@ private fun ComposeStep(
             }
         }
     }
-}
-
-@Composable
-private fun TopBar(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            onClick = onBack,
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.4f)
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Text(text = "←", color = Color.White, style = MaterialTheme.typography.titleLarge)
-            }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = title,
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-private fun formatPrice(priceMinor: Int, currency: String): String {
-    val major = priceMinor / 100
-    return if (currency == "INR") "₹$major" else "$currency $major"
 }

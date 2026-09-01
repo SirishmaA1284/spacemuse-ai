@@ -6,6 +6,7 @@
     <string name="home_scan_subtitle">Point your camera at a room to get started</string>
     <string name="home_scan_ar_cta">Scan Room (AR)</string>
     <string name="home_try_in_space_cta">Try a Product in Your Room</string>
+    <string name="home_ar_try_on_cta">Place a Product (AR)</string>
 
     <string name="camera_permission_rationale">SpaceMuse AI needs camera access to scan your room.</string>
     <string name="camera_permission_cta">Grant camera permission</string>

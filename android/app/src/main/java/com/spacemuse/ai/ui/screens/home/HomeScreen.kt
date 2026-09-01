@@ -41,6 +41,7 @@ fun HomeScreen(
     onScanMySpace: () -> Unit,
     onScanRoomAr: () -> Unit,
     onTryInSpace: () -> Unit,
+    onArTryOn: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     Box(
@@ -147,6 +148,28 @@ fun HomeScreen(
             ) {
                 Text(
                     text = stringResource(R.string.home_try_in_space_cta),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Milestone 5 of Phase 7 — anchors the same product-overlay idea
+            // into the live AR scene via a real ARCore Anchor, scaled to
+            // the anchor's real-world depth (ADR-006's Level 4), instead of
+            // a static photo. A separate entry point rather than a mode
+            // switch inside "Try a Product in Your Room" above, matching
+            // this repo's existing pattern of parallel AR/non-AR entry
+            // points (see "Scan Room (AR)" vs "Scan My Space").
+            OutlinedButton(
+                onClick = onArTryOn,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.home_ar_try_on_cta),
                     style = MaterialTheme.typography.titleMedium
                 )
             }
