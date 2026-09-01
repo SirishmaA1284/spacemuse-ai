@@ -154,34 +154,45 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
                     )
                 }
 
-                StatusBadge(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 100.dp),
-                    status = trackingStatus,
-                    planeCount = planeCount,
-                    hasAnchor = anchorProjection != null
-                )
-
+                // Stacked in a Column, not two independently
+                // bottom-aligned composables with a guessed padding gap --
+                // ArScanScreen.kt hit exactly this overlap bug once already
+                // (a hardcoded bottom padding assuming fixed content
+                // height) and this screen repeated the same shape. A
+                // Column sizes itself from the two children's actual
+                // heights instead of a guess.
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(product.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(product.productUrl)))
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    StatusBadge(
+                        modifier = Modifier.padding(bottom = 12.dp),
+                        status = trackingStatus,
+                        planeCount = planeCount,
+                        hasAnchor = anchorProjection != null
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(16.dp)
                     ) {
-                        Text("View / Buy")
+                        Text(product.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(product.productUrl)))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("View / Buy")
+                        }
                     }
                 }
             }
