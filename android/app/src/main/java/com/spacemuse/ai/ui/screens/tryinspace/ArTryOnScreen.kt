@@ -93,7 +93,6 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
     var planeCount by remember { mutableStateOf(0) }
     var sessionError by remember { mutableStateOf<String?>(null) }
     var hasAnchor by remember { mutableStateOf(false) }
-    var productDebug by remember { mutableStateOf("") } // temporary diagnostic -- see ArTryOnPreview's onProductDebug
 
     val cutout = rememberProductCutout(product)
     val cutoutBitmap = (cutout as? CutoutResult.Ready)?.bitmap
@@ -117,22 +116,8 @@ private fun ArPlacingStep(product: Product, onBack: () -> Unit) {
                     onTrackingStatusChanged = { trackingStatus = it },
                     onPlaneCountChanged = { planeCount = it },
                     onSessionError = { sessionError = it },
-                    onAnchorPlaced = { hasAnchor = it },
-                    onProductDebug = { productDebug = it }
+                    onAnchorPlaced = { hasAnchor = it }
                 )
-
-                if (hasAnchor) {
-                    Text(
-                        text = productDebug,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 80.dp)
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .padding(8.dp),
-                        color = Color.Yellow,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
 
                 // Stacked in a Column, not two independently
                 // bottom-aligned composables with a guessed padding gap --

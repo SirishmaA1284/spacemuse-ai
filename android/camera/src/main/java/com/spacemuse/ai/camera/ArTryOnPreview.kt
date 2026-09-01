@@ -69,8 +69,7 @@ fun ArTryOnPreview(
     onTrackingStatusChanged: (ArTrackingStatus) -> Unit = {},
     onPlaneCountChanged: (Int) -> Unit = {},
     onSessionError: (String) -> Unit = {},
-    onAnchorPlaced: (Boolean) -> Unit = {},
-    onProductDebug: (String) -> Unit = {}
+    onAnchorPlaced: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -137,8 +136,7 @@ fun ArTryOnPreview(
                         onTrackingStatusChanged = onTrackingStatusChanged,
                         onPlaneCountChanged = onPlaneCountChanged,
                         onRendererError = onSessionError,
-                        onAnchorPlaced = onAnchorPlaced,
-                        onProductDebug = onProductDebug
+                        onAnchorPlaced = onAnchorPlaced
                     )
                 )
                 renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -234,8 +232,7 @@ private class ArTryOnRenderer(
     private val onTrackingStatusChanged: (ArTrackingStatus) -> Unit,
     private val onPlaneCountChanged: (Int) -> Unit,
     private val onRendererError: (String) -> Unit,
-    private val onAnchorPlaced: (Boolean) -> Unit,
-    private val onProductDebug: (String) -> Unit
+    private val onAnchorPlaced: (Boolean) -> Unit
 ) : GLSurfaceView.Renderer {
     private val backgroundRenderer = BackgroundRenderer()
     private val planeRenderer = PlaneRenderer()
@@ -373,29 +370,15 @@ private class ArTryOnRenderer(
         return Vec3.normalizeOrFallback(projected, fallback = floatArrayOf(0f, 0f, 1f))
     }
 
-    // User reported the product simply doesn't appear at all after placing
-    // it, despite the status text confirming an anchor exists and the
-    // cutout bitmap is ready -- with no logcat access, and every plausible
-    // cause (a silently-thrown exception partway through, a degenerate/
-    // zero-size quad, a bitmap GL rejects) all looking equally likely from
-    // reading the code alone, this reports exactly what happened each
-    // frame instead of guessing further.
     private fun drawPlacedProduct(camera: Camera, viewMatrix: FloatArray, projectionMatrix: FloatArray) {
-        val current = placedAnchor
-        if (current == null) {
-            onProductDebug("no anchor placed yet")
-            return
-        }
-        if (current.anchor.trackingState != TrackingState.TRACKING) {
-            onProductDebug("anchor not tracking (${current.anchor.trackingState})")
-            return
-        }
-        val bitmap = getProductBitmap()
-        if (bitmap == null) {
-            onProductDebug("anchor placed, no bitmap yet")
-            return
-        }
+        val current = placedAnchor ?: return
+        if (current.anchor.trackingState != TrackingState.TRACKING) return
+        val bitmap = getProductBitmap() ?: return
 
+        // Wrapped in try/catch (kept permanently, unlike the debug logging
+        // that used to live here -- see git history if this needs
+        // re-instrumenting) so a bad frame's placement math can't take
+        // down the whole render loop.
         try {
             val normal = Vec3.normalizeOrFallback(current.anchor.pose.yAxis, fallback = floatArrayOf(0f, 1f, 0f))
             // Re-derived each frame from the live (possibly ARCore-refined)
@@ -419,15 +402,8 @@ private class ArTryOnRenderer(
 
             val center = floatArrayOf(current.anchor.pose.tx(), current.anchor.pose.ty(), current.anchor.pose.tz())
             productQuadRenderer.draw(bitmap, center, rotatedRight, rotatedUp, widthMeters, heightMeters, viewMatrix, projectionMatrix)
-
-            onProductDebug(
-                "drew %.2fx%.2fm at (%.2f,%.2f,%.2f) bitmap=%dx%d recycled=%b".format(
-                    widthMeters, heightMeters, center[0], center[1], center[2],
-                    bitmap.width, bitmap.height, bitmap.isRecycled
-                )
-            )
         } catch (e: Exception) {
-            onProductDebug("draw failed: ${e::class.simpleName}: ${e.message}")
+            onRendererError(e.message ?: "Failed to draw the placed product.")
         }
     }
 
