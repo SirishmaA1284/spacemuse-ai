@@ -12,8 +12,10 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -315,7 +317,7 @@ private class ArRenderer(
 
             val confirmed = getConfirmedMeasurements()
             val markers = buildList {
-                pendingFirstPoint?.let(::add)
+                pendingFirstPoint?.let { add(it) }
                 confirmed.forEach { (a, b) -> add(a); add(b) }
             }
             measurementRenderer.draw(markers, confirmed, viewMatrix, projectionMatrix)
